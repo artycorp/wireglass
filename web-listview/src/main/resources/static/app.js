@@ -2,6 +2,7 @@
 
 const state = {
     packets: [],          // all received packets
+    seen: new Set(),      // packet ids already added (dedupe history vs. live SSE)
     selectedId: null,
     currentRunId: null,
     filter: { text: '', type: '', errorsOnly: false },
@@ -42,11 +43,32 @@ function ensureStream() {
 }
 
 function addPacket(packet) {
+    if (packet && packet.id != null && state.seen.has(packet.id)) {
+        return; // already shown (history loaded after a live SSE delivery, or vice versa)
+    }
+    if (packet && packet.id != null) {
+        state.seen.add(packet.id);
+    }
     state.packets.push(packet);
     if (matchesFilter(packet)) {
         appendRow(packet);
     }
     el.count.textContent = state.packets.length + ' packets';
+}
+
+// Load packets already captured by the backend (e.g. from an external jmeter-dsl test that ran
+// before the page was opened). Live packets arrive afterwards via SSE and are deduped by id.
+async function loadRecent() {
+    try {
+        const r = await fetch('/api/packets?limit=500');
+        if (!r.ok) return;
+        const recent = await r.json();
+        for (const p of recent) {
+            addPacket(p);
+        }
+    } catch (e) {
+        // ignore: live SSE will still carry new packets
+    }
 }
 
 function matchesFilter(p) {
@@ -175,12 +197,14 @@ el.stop.addEventListener('click', async () => {
     setStatus('stopping…');
 });
 
-el.clear.addEventListener('click', () => {
+el.clear.addEventListener('click', async () => {
     state.packets = [];
+    state.seen = new Set();
     state.selectedId = null;
     el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
     renderDetail(null);
+    try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
 });
 
 async function startRun(payload) {
@@ -236,3 +260,5 @@ function rebuildList() {
 
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
+// backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)
+loadRecent();

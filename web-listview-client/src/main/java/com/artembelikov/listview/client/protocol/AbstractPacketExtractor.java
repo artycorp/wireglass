@@ -1,6 +1,6 @@
-package com.artembelikov.listview.protocol;
+package com.artembelikov.listview.client.protocol;
 
-import com.artembelikov.listview.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.OffsetDateTime;

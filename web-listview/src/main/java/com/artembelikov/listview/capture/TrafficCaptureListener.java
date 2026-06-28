@@ -1,25 +1,31 @@
 package com.artembelikov.listview.capture;
 
-import com.artembelikov.listview.protocol.PacketExtractor;
-import java.util.List;
-import org.apache.jmeter.visualizers.SimpleDataWriter;
+import com.artembelikov.listview.client.capture.CapturingReporter;
+import com.artembelikov.listview.client.capture.PacketSink;
+import org.apache.jmeter.testelement.TestElement;
 import us.abstracta.jmeter.javadsl.core.listeners.BaseListener;
 
+/**
+ * In-process capture listener used when the web form launches its own test: packets flow directly to
+ * the {@link PacketBus} (no network). External jmeter-dsl tests instead use
+ * {@code TrafficCaptureClient} from the web-listview-client module.
+ */
 public class TrafficCaptureListener extends BaseListener {
 
-    private final PacketBus bus;
-    private final List<PacketExtractor> extractors;
+    private final PacketSink sink;
+    private final com.artembelikov.listview.client.protocol.PacketExtractor[] extractors;
     private final int maxBodyBytes;
 
-    public TrafficCaptureListener(PacketBus bus, List<PacketExtractor> extractors, int maxBodyBytes) {
-        super("Traffic Capture Listener", SimpleDataWriter.class);
-        this.bus = bus;
-        this.extractors = extractors;
+    public TrafficCaptureListener(PacketSink sink, int maxBodyBytes,
+                                  com.artembelikov.listview.client.protocol.PacketExtractor... extractors) {
+        super("Traffic Capture Listener", org.apache.jmeter.visualizers.SimpleDataWriter.class);
+        this.sink = sink;
         this.maxBodyBytes = maxBodyBytes;
+        this.extractors = extractors;
     }
 
     @Override
-    public org.apache.jmeter.testelement.TestElement buildTestElement() {
-        return new TrafficCapturingReporter(bus, extractors, maxBodyBytes);
+    public TestElement buildTestElement() {
+        return new CapturingReporter(sink, java.util.Arrays.asList(extractors), maxBodyBytes);
     }
 }

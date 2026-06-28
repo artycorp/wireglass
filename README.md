@@ -71,6 +71,8 @@ Then open <http://localhost:8080>.
 | GET    | `/api/traffic/stream`      | SSE stream of captured packets.          |
 | GET    | `/api/packets?limit=200`   | Recent packets (post-run).               |
 | GET    | `/api/packets/{id}`        | Single packet detail.                    |
+| DELETE | `/api/packets`             | Clear the in-memory packet history.      |
+| WS     | `/api/ingest`              | Ingestion endpoint for external jmeter-java-dsl clients (each frame is a `CapturedPacket` JSON). |
 
 `RunRequest`:
 ```json
@@ -84,6 +86,41 @@ Then open <http://localhost:8080>.
 Add a new `PacketExtractor` (Spring `@Component`) implementing `supports()` / `extract()` and returning a
 `PacketType`. Extractors are ordered HTTP → WebSocket → TCP (catch-all). This is the extension point for
 a future full TCP analyzer (frame parsing / reassembly).
+
+## Use with any jmeter-java-dsl test plan
+
+The web form is not limited to tests launched from its own UI. The `web-listview-client` module
+provides a `TrafficCaptureClient` listener that streams every captured sample to the running form
+over a WebSocket, so **any** standalone jmeter-java-dsl test plan (in its own process/JVM) shows up
+live in the browser — exactly like a form-launched run.
+
+```bash
+cd web-listview-client && mvn install        # publish the client to your local Maven repo
+cd ../web-listview && mvn spring-boot:run     # start the form (or ./run.sh)
+```
+
+Then add the listener to your test plan:
+
+```java
+import static us.abstracta.jmeter.javadsl.JmeterDsl.testPlan;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.threadGroup;
+import static us.abstracta.jmeter.javadsl.JmeterDsl.httpSampler;
+
+import com.artembelikov.listview.client.capture.TrafficCaptureClient;
+
+testPlan(
+    threadGroup(2, 3, httpSampler("https://httpbin.org/get")),
+    new TrafficCaptureClient("http://localhost:8080")   // stream to the running form
+).run();
+```
+
+Run it, and the requests/responses appear in the browser list view in real time. Packets captured
+before the page is opened are backfilled automatically when the page loads. HTTPS bodies are captured
+decrypted (JMeter terminates TLS as the client).
+
+> Regular JMeter (GUI / non-GUI, `.jmx`) is **not** supported yet: that requires a dedicated JMeter
+> plugin (a `BackendListenerClient` jar). The WebSocket ingestion endpoint (`/api/ingest`) and the
+> shared extractors are already in place as the foundation for it.
 
 ## Testing (end-to-end with Playwright)
 

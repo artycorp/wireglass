@@ -1,6 +1,6 @@
 package com.artembelikov.listview.capture;
 
-import com.artembelikov.listview.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;

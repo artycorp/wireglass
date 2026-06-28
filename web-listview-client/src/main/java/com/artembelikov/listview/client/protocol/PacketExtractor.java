@@ -1,6 +1,7 @@
-package com.artembelikov.listview.protocol;
+package com.artembelikov.listview.client.protocol;
 
-import com.artembelikov.listview.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.PacketType;
 import org.apache.jmeter.samplers.SampleResult;
 
 public interface PacketExtractor {

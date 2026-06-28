@@ -2,6 +2,7 @@ package com.artembelikov.listview;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.artembelikov.listview.client.capture.TrafficCaptureClient;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
@@ -12,14 +13,20 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import us.abstracta.jmeter.javadsl.JmeterDsl;
 
 /**
  * End-to-end tests: boots the full Spring Boot app (in-process, on a random port) and drives the
@@ -78,6 +85,17 @@ class TrafficInspectorE2EIT {
         if (echoServer != null) {
             echoServer.stop(0);
         }
+    }
+
+    @BeforeEach
+    void clearBackend() throws Exception {
+        // isolate tests: each test starts with an empty packet repository on the backend
+        HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder()
+                        .uri(URI.create(appUrl("/api/packets")))
+                        .DELETE()
+                        .build(),
+                HttpResponse.BodyHandlers.discarding());
     }
 
     @Test
@@ -149,6 +167,39 @@ class TrafficInspectorE2EIT {
                     "() => document.querySelectorAll('#packet-body tr.pkt').length >= " + total,
                     null,
                     new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
+    void externalJmeterDslTestAppearsInForm() throws Exception {
+        // Open the UI first so its SSE stream is live, then run a *standalone* jmeter-java-dsl
+        // plan in a separate thread that streams its samples to the form via TrafficCaptureClient
+        // (WebSocket -> /api/ingest). The packets must show up exactly like an in-form run.
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.waitForFunction(
+                    "() => window.EventSource && true",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            Thread runner = new Thread(() -> {
+                try {
+                    JmeterDsl.testPlan(
+                            JmeterDsl.threadGroup(1, 2, JmeterDsl.httpSampler(echoUrl("/"))),
+                            new TrafficCaptureClient("http://localhost:" + appPort)
+                    ).run();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, "external-jmeter-dsl-run");
+            runner.setDaemon(true);
+            runner.start();
+
+            int rows = waitForRowCount(page, 2);
+            assertThat(rows).isGreaterThanOrEqualTo(2);
+            assertThat(page.innerText("#packet-body")).contains("GET").contains("200");
+
+            runner.join(TEST_TIMEOUT.toMillis());
         }
     }
 

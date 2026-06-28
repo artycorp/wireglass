@@ -1,4 +1,4 @@
-package com.artembelikov.listview.protocol;
+package com.artembelikov.listview.client.protocol;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;

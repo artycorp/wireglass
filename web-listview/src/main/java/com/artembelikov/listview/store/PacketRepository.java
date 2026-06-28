@@ -1,6 +1,6 @@
 package com.artembelikov.listview.store;
 
-import com.artembelikov.listview.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;

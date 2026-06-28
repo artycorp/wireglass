@@ -1,6 +1,5 @@
-package com.artembelikov.listview.dto;
+package com.artembelikov.listview.client.dto;
 
-import com.artembelikov.listview.protocol.PacketType;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;

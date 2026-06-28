@@ -1,7 +1,7 @@
 package com.artembelikov.listview.web;
 
 import com.artembelikov.listview.capture.PacketBus;
-import com.artembelikov.listview.dto.CapturedPacket;
+import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,4 +1,4 @@
-package com.artembelikov.listview.protocol;
+package com.artembelikov.listview.client.dto;
 
 public enum PacketType {
     HTTP,
