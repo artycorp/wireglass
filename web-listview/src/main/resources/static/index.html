@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>jmeter-web-listview — traffic inspector</title>
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">jmeter <span>web-listview</span></div>
+    <form id="run-form" class="run-form">
+        <input id="f-url" name="url" type="text" placeholder="https://httpbin.org/get"
+               value="https://httpbin.org/get" required/>
+        <select id="f-method" name="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+            <option>HEAD</option>
+        </select>
+        <input id="f-threads" name="threads" type="number" min="1" max="100" value="2" title="threads"/>
+        <input id="f-iterations" name="iterations" type="number" min="1" max="1000" value="3" title="iterations"/>
+        <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
+        <button type="submit" class="primary">Run</button>
+        <button type="button" id="demo-btn">Demo</button>
+        <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
+        <button type="button" id="clear-btn">Clear</button>
+        <textarea id="f-body" name="body" placeholder='request body (e.g. {"k":"v"}) for POST/PUT/PATCH' rows="1"></textarea>
+    </form>
+    <div id="run-status" class="run-status">idle</div>
+</header>
+
+<section class="bodygrid">
+    <div class="pane listpane">
+        <div class="pane-toolbar">
+            <input id="filter-text" type="text" placeholder="filter by url / label..."/>
+            <select id="filter-type">
+                <option value="">all types</option>
+                <option value="HTTP">HTTP</option>
+                <option value="WEBSOCKET">WebSocket</option>
+                <option value="TCP">TCP</option>
+            </select>
+            <label class="chk"><input id="filter-errors" type="checkbox"/> errors only</label>
+            <span id="packet-count" class="count">0 packets</span>
+        </div>
+        <div class="table-wrap">
+            <table id="packet-table">
+                <thead>
+                <tr>
+                    <th class="c-idx">#</th>
+                    <th class="c-time">time</th>
+                    <th class="c-type">type</th>
+                    <th class="c-method">method</th>
+                    <th class="c-url">url / label</th>
+                    <th class="c-status">status</th>
+                    <th class="c-latency">latency</th>
+                    <th class="c-size">resp kB</th>
+                </tr>
+                </thead>
+                <tbody id="packet-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="pane detailpane" id="detail-pane">
+        <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
+    </div>
+</section>
+
+<template id="row-template">
+    <tr class="pkt">
+        <td class="c-idx"></td>
+        <td class="c-time"></td>
+        <td class="c-type"></td>
+        <td class="c-method"></td>
+        <td class="c-url"></td>
+        <td class="c-status"></td>
+        <td class="c-latency"></td>
+        <td class="c-size"></td>
+    </tr>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

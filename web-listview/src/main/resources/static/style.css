@@ -1,0 +1,141 @@
+:root {
+    --bg: #1e1f22;
+    --bg-2: #26282c;
+    --bg-3: #2f3236;
+    --border: #3a3d42;
+    --text: #dfe3e8;
+    --muted: #8b9097;
+    --accent: #4c9aff;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --err: #f85149;
+    --ws: #a371f7;
+    --tcp: #d2a8ff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.brand { font-weight: 600; font-size: 14px; }
+.brand span { color: var(--muted); font-weight: 400; }
+
+.run-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.run-form input, .run-form select, .run-form textarea, .pane-toolbar input, .pane-toolbar select {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+.run-form #f-url { min-width: 280px; flex: 1; }
+.run-form #f-contentType { width: 150px; }
+.run-form #f-body { min-width: 240px; max-width: 360px; flex: 1; resize: vertical; }
+.run-form input[type=number] { width: 70px; }
+
+button {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
+button.primary:hover { filter: brightness(1.08); }
+button.danger { color: var(--err); }
+button:disabled { opacity: .45; cursor: default; }
+
+.run-status { color: var(--muted); font-size: 12px; min-width: 120px; text-align: right; }
+
+.bodygrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: calc(100vh - 56px);
+}
+
+.pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.listpane { border-right: 1px solid var(--border); }
+
+.pane-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+}
+.pane-toolbar #filter-text { min-width: 160px; flex: 1; }
+.pane-toolbar .count { margin-left: auto; color: var(--muted); }
+.pane-toolbar .chk { color: var(--muted); display: flex; align-items: center; gap: 4px; }
+
+.table-wrap { overflow: auto; flex: 1; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td {
+    text-align: left;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+th { position: sticky; top: 0; background: var(--bg-2); color: var(--muted); font-weight: 500; z-index: 1; }
+td.c-url { max-width: 100%; }
+tr.pkt { cursor: pointer; }
+tr.pkt:hover { background: var(--bg-2); }
+tr.pkt.selected { background: #2c3a4a; }
+tr.pkt.err .c-status { color: var(--err); font-weight: 600; }
+tr.pkt .c-type.http { color: var(--accent); }
+tr.pkt .c-type.ws { color: var(--ws); }
+tr.pkt .c-type.tcp { color: var(--tcp); }
+
+.detailpane { overflow: auto; padding: 12px 14px; }
+.detailpane .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+.detail h2 { margin: 0 0 8px; font-size: 14px; word-break: break-all; }
+.detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; word-break: break-all; }
+.detail h3 { margin: 16px 0 4px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
+.detail pre {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 360px;
+}
+.detail table.kv { width: 100%; }
+.detail table.kv td { white-space: normal; }
+.detail table.kv td.k { color: var(--accent); width: 38%; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+.badge.ok { background: rgba(63,185,80,.18); color: var(--ok); }
+.badge.err { background: rgba(248,81,73,.18); color: var(--err); }

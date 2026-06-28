@@ -1,0 +1,34 @@
+# --- Reference source clones (apache/jmeter, abstracta/jmeter-java-dsl) ---
+# These are shallow clones used only for local grep/inspection. Do not commit
+# (they are large and are themselves separate git repositories).
+/jmeter/
+
+# --- Build output ---
+target/
+build/
+out/
+*.class
+
+# --- Maven ---
+dependency-reduced-pom.xml
+.mvn/wrapper/maven-wrapper.jar
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDE ---
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.project
+.classpath
+.factorypath
+*.swp
+
+# --- OS ---
+.DS_Store
+Thumbs.db

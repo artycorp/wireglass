@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: jmeter-web-listview
+  mvc:
+    async:
+      request-timeout: -1   # SSE streams should not be timed out by Spring MVC
+
+app:
+  listview:
+    # Bounded ring buffer: keep at most this many recent packets in memory (OOM protection)
+    ring-buffer-size: 5000
+    # Cap stored body bytes per packet to avoid blowing memory on huge responses
+    max-body-bytes: 262144   # 256 KiB
