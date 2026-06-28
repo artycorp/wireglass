@@ -20,7 +20,7 @@ const el = {
     stop: document.getElementById('stop-btn'),
     clear: document.getElementById('clear-btn'),
     status: document.getElementById('run-status'),
-    body: document.getElementById('packet-body'),
+    tbody: document.getElementById('packet-body'),
     count: document.getElementById('packet-count'),
     filterText: document.getElementById('filter-text'),
     filterType: document.getElementById('filter-type'),
@@ -32,12 +32,12 @@ const el = {
 function ensureStream() {
     if (state.es) return;
     state.es = new EventSource('/api/traffic/stream');
+    state.es.onopen = () => console.log('[SSE] connected');
     state.es.addEventListener('packet', (ev) => {
-        const packet = JSON.parse(ev.data);
-        addPacket(packet);
+        addPacket(JSON.parse(ev.data));
     });
     state.es.onerror = () => {
-        // browser auto-reconnects EventSource; nothing to do
+        // EventSource auto-reconnects; nothing to do here
     };
 }
 
@@ -60,7 +60,7 @@ function matchesFilter(p) {
 }
 
 function appendRow(packet) {
-    const idx = state.body.children.length + 1;
+    const idx = el.tbody.children.length + 1;
     const row = el.rowTpl.content.firstElementChild.cloneNode(true);
     row.dataset.id = packet.id;
     row.querySelector('.c-idx').textContent = idx;
@@ -77,7 +77,7 @@ function appendRow(packet) {
     row.querySelector('.c-size').textContent = (size / 1024).toFixed(2);
     if (!packet.success) row.classList.add('err');
     row.addEventListener('click', () => selectPacket(packet.id, row));
-    el.body.appendChild(row);
+    el.tbody.appendChild(row);
 }
 
 function formatTime(iso) {
@@ -178,7 +178,7 @@ el.stop.addEventListener('click', async () => {
 el.clear.addEventListener('click', () => {
     state.packets = [];
     state.selectedId = null;
-    el.body.innerHTML = '';
+    el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
     renderDetail(null);
 });
@@ -222,13 +222,13 @@ el.filterType.addEventListener('change', () => { state.filter.type = el.filterTy
 el.filterErrors.addEventListener('change', () => { state.filter.errorsOnly = el.filterErrors.checked; rebuildList(); });
 
 function rebuildList() {
-    el.body.innerHTML = '';
+    el.tbody.innerHTML = '';
     let i = 0;
     for (const p of state.packets) {
         if (matchesFilter(p)) {
             appendRow(p);
             // appendRow increments count from children length; re-set index manually
-            el.body.lastElementChild.querySelector('.c-idx').textContent = ++i;
+            el.tbody.lastElementChild.querySelector('.c-idx').textContent = ++i;
         }
     }
     el.count.textContent = state.packets.length + ' packets';

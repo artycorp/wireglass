@@ -81,9 +81,25 @@ Then open <http://localhost:8080>.
 
 ## Extending protocols
 
-Add a new `PacketExtractor` (Spring `@Component`) implementing `supports()` / `extract()` and return a
+Add a new `PacketExtractor` (Spring `@Component`) implementing `supports()` / `extract()` and returning a
 `PacketType`. Extractors are ordered HTTP → WebSocket → TCP (catch-all). This is the extension point for
 a future full TCP analyzer (frame parsing / reassembly).
+
+## Testing (end-to-end with Playwright)
+
+The e2e tests boot the full app in-process (`@SpringBootTest`, random port — which also keeps JMeter on
+a real-file classpath) and drive the browser UI with Playwright against a local echo HTTP server, so no
+external network is needed.
+
+```bash
+cd web-listview
+mvn verify                       # installs chromium once, then runs the e2e suite
+mvn verify -DskipPlaywrightInstall=true   # skip the browser install if already present
+mvn verify -DskipITs=true        # skip e2e tests entirely
+```
+
+The suite (`TrafficInspectorE2EIT`) verifies: a run produces packets in the list, selecting a packet
+shows request/response bodies, and the filter hides non-matching packets.
 
 ## Configuration
 

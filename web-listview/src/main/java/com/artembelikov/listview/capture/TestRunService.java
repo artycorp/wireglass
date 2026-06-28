@@ -141,28 +141,22 @@ public class TestRunService {
 
     private void configureMethodAndBody(DslHttpSampler sampler, String method, RunRequest request) {
         String body = request.body();
-        ContentType contentType = parseContentType(request.contentType());
         boolean hasBody = body != null && !body.isBlank();
-        switch (method) {
-            case "GET" -> sampler.method("GET");
-            case "POST" -> {
-                if (hasBody && contentType != null) {
-                    sampler.post(body, contentType);
-                } else if (hasBody) {
-                    sampler.method("POST").body(body);
-                } else {
-                    sampler.method("POST");
-                }
-            }
-            default -> {
-                sampler.method(method);
-                if (hasBody) {
-                    sampler.body(body);
-                }
-                if (contentType != null) {
-                    sampler.contentType(contentType);
-                }
-            }
+        ContentType contentType = parseContentType(request.contentType());
+        /*
+         * jmeter-dsl only transmits the request body when a content type is set (see DslHttpSampler.post
+         * which is method(POST).contentType(ct).body(body)). When the user provides a body without a
+         * content type, default to text/plain so the body is actually sent on the wire.
+         */
+        if (hasBody && contentType == null) {
+            contentType = ContentType.TEXT_PLAIN.withCharset(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        sampler.method(method);
+        if (hasBody) {
+            sampler.body(body);
+        }
+        if (contentType != null) {
+            sampler.contentType(contentType);
         }
     }
 
