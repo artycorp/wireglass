@@ -330,6 +330,37 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void expandButtonOpensFullScreenBodyViewer() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#run-toggle");
+            page.fill("#f-url", echoUrl("/big"));
+            page.selectOption("#f-method", "GET");
+            page.fill("#f-threads", "1");
+            page.fill("#f-iterations", "1");
+            page.click("button.primary");
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-pane .body-expand",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // expand -> full-screen modal with a CodeMirror viewer
+            page.click("#detail-pane .body-expand");
+            page.waitForSelector("#body-modal .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#body-modal")).isTrue();
+
+            // Escape closes it
+            page.keyboard().press("Escape");
+            page.waitForFunction(
+                    "() => document.querySelector('#body-modal').hidden",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
     void formatButtonPrettyPrintsRequestBody() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

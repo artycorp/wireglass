@@ -49,6 +49,11 @@ const el = {
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
     detailClose: document.getElementById('detail-close'),
+    bodyModal: document.getElementById('body-modal'),
+    bmTitle: document.getElementById('bm-title'),
+    bmSize: document.getElementById('bm-size'),
+    bmClose: document.getElementById('bm-close'),
+    bmHost: document.getElementById('bm-host'),
     rowTpl: document.getElementById('row-template'),
 };
 
@@ -226,6 +231,7 @@ function closeDetail() {
 
 function renderDetail(packet) {
     cmHosts = [];
+    detailBodies = [];
     if (!packet) { el.detail.innerHTML = '<div class="empty">Select a packet to inspect request &amp; response bodies.</div>'; return; }
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -259,24 +265,36 @@ function sectionHeaders(title, headers) {
 // everything else falls back to a plain <pre>. CM instances are mounted after innerHTML is set.
 let cmHostSeq = 0;
 let cmHosts = [];
+let detailBodies = [];  // {title, code, mode, size} per rendered body, for the expand modal
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
 function bodyBlock(title, body, binary, truncated) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? ' (truncated)' : '');
+    let code = body;
+    let mode = null;
     if (!binary) {
         const lang = detectLang(body);
-        if (lang) {
-            const id = 'cm-host-' + (++cmHostSeq);
-            cmHosts.push({ id, code: lang.code, mode: lang.mode });
-            return '<h3>' + title + note + '</h3><div class="cm-host" id="' + id + '"></div>';
-        }
+        if (lang) { code = lang.code; mode = lang.mode; }
     } else {
         note += ' (binary — hex preview)';
     }
-    return '<h3>' + title + note + '</h3><pre>' + esc(body) + '</pre>';
+    const bi = detailBodies.push({ title: stripTags(title), code, mode, size: body.length }) - 1;
+    const expand = ' <button type="button" class="body-expand" data-body="' + bi
+        + '" title="Expand to full screen" aria-label="Expand">⤢</button>';
+    let inner;
+    if (mode) {
+        const id = 'cm-host-' + (++cmHostSeq);
+        cmHosts.push({ id, code, mode });
+        inner = '<div class="cm-host" id="' + id + '"></div>';
+    } else {
+        inner = '<pre>' + esc(code) + '</pre>';
+    }
+    return '<h3>' + title + note + expand + '</h3>' + inner;
 }
+
+function stripTags(s) { return String(s).replace(/<[^>]*>/g, '').trim(); }
 
 function humanSize(n) {
     if (n < 1024) return n + ' B';
@@ -389,6 +407,45 @@ el.clear.addEventListener('click', async () => {
 // ---- detail drawer + keyboard navigation ----
 el.detailClose.addEventListener('click', closeDetail);
 
+// ---- full-screen body viewer modal ----
+let bodyModalCm = null;
+function openBodyModal(i) {
+    const b = detailBodies[i];
+    if (!b) return;
+    el.bmTitle.textContent = b.title;
+    el.bmSize.textContent = humanSize(b.size);
+    el.bmHost.innerHTML = '';
+    el.bodyModal.hidden = false;
+    if (window.CodeMirror) {
+        bodyModalCm = CodeMirror(el.bmHost, {
+            value: b.code,
+            mode: b.mode || null,
+            readOnly: true,
+            lineNumbers: true,
+            lineWrapping: true,
+            viewportMargin: 10,  // virtualize: the whole point is huge bodies
+        });
+        requestAnimationFrame(() => bodyModalCm.refresh());
+    } else {
+        const pre = document.createElement('pre');
+        pre.textContent = b.code;
+        el.bmHost.appendChild(pre);
+    }
+}
+function closeBodyModal() {
+    el.bodyModal.hidden = true;
+    el.bmHost.innerHTML = '';
+    bodyModalCm = null;
+}
+el.detail.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.body-expand');
+    if (btn) openBodyModal(Number(btn.dataset.body));
+});
+el.bmClose.addEventListener('click', closeBodyModal);
+el.bodyModal.addEventListener('click', (ev) => {
+    if (ev.target === el.bodyModal) closeBodyModal();  // click backdrop to dismiss
+});
+
 function visibleRows() {
     return Array.from(el.tbody.querySelectorAll('tr.pkt'));
 }
@@ -410,7 +467,8 @@ document.addEventListener('keydown', (ev) => {
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
     if (ev.key === 'Escape') {
-        if (el.detailPane.classList.contains('open')) { closeDetail(); ev.preventDefault(); }
+        if (!el.bodyModal.hidden) { closeBodyModal(); ev.preventDefault(); }
+        else if (el.detailPane.classList.contains('open')) { closeDetail(); ev.preventDefault(); }
         else if (typing) document.activeElement.blur();
         return;
     }
