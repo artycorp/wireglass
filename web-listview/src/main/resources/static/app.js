@@ -137,7 +137,9 @@ function appendRow(packet) {
     const typeCell = row.querySelector('.c-type');
     typeCell.textContent = packet.type;
     typeCell.classList.add(packet.type.toLowerCase());
-    row.querySelector('.c-method').textContent = packet.method;
+    const methodCell = row.querySelector('.c-method');
+    methodCell.textContent = packet.method;
+    if (packet.method) methodCell.classList.add('m-' + packet.method.toLowerCase());
     row.querySelector('.c-url').textContent = packet.url || packet.label;
     const statusCell = row.querySelector('.c-status');
     statusCell.textContent = packet.status || (packet.success ? 'OK' : 'ERR');

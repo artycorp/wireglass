@@ -111,6 +111,10 @@ class TrafficInspectorE2EIT {
             String tableText = page.innerText("#packet-body");
             assertThat(tableText).contains("GET").contains("200");
 
+            // method and status are color-coded via classes (GET -> m-get, 2xx -> s2)
+            assertThat(page.querySelector("#packet-body tr.pkt .c-method.m-get")).isNotNull();
+            assertThat(page.querySelector("#packet-body tr.pkt .c-status.s2")).isNotNull();
+
             // run lifecycle reaches FINISHED and the status line reflects it
             page.waitForFunction(
                     "() => /finished/.test(document.querySelector('#run-status').textContent)",

@@ -16,6 +16,7 @@
     --s3: #4c9aff;
     --s4: #d29922;
     --s5: #f85149;
+    --patch: #2bb3a3;
     /* waterfall timing segments */
     --wf-connect: #6e7681;
     --wf-wait: #4c9aff;
@@ -224,11 +225,21 @@ tr.pkt .c-type.ws { color: var(--ws); }
 tr.pkt .c-type.tcp { color: var(--tcp); }
 
 /* semantic status coding (set by JS via .s2/.s3/.s4/.s5) */
-td.c-status { font-variant-numeric: tabular-nums; }
+td.c-status { font-variant-numeric: tabular-nums; font-weight: 600; }
 td.c-status.s2 { color: var(--s2); }
 td.c-status.s3 { color: var(--s3); }
-td.c-status.s4 { color: var(--s4); font-weight: 600; }
-td.c-status.s5 { color: var(--s5); font-weight: 600; }
+td.c-status.s4 { color: var(--s4); }
+td.c-status.s5 { color: var(--s5); }
+
+/* HTTP method coding (set by JS via .m-get/.m-post/...) */
+td.c-method { font-weight: 600; }
+td.c-method.m-get { color: var(--s2); }
+td.c-method.m-post { color: var(--s4); }
+td.c-method.m-put { color: var(--accent); }
+td.c-method.m-patch { color: var(--patch); }
+td.c-method.m-delete { color: var(--err); }
+td.c-method.m-head { color: var(--muted); }
+td.c-method.m-ws { color: var(--ws); }
 
 /* inline timing waterfall: connect | wait(latency) | processing */
 td.c-latency { font-variant-numeric: tabular-nums; }
