@@ -7,6 +7,7 @@ const state = {
     currentRunId: null,
     filter: { text: '', type: '', errorsOnly: false },
     es: null,             // EventSource
+    maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
 };
 
 const el = {
@@ -26,7 +27,9 @@ const el = {
     filterText: document.getElementById('filter-text'),
     filterType: document.getElementById('filter-type'),
     filterErrors: document.getElementById('filter-errors'),
-    detail: document.getElementById('detail-pane'),
+    detail: document.getElementById('detail-content'),
+    detailPane: document.getElementById('detail-pane'),
+    detailClose: document.getElementById('detail-close'),
     rowTpl: document.getElementById('row-template'),
 };
 
@@ -50,6 +53,10 @@ function addPacket(packet) {
         state.seen.add(packet.id);
     }
     state.packets.push(packet);
+    if (packet && packet.elapsedMs > state.maxElapsed) {
+        state.maxElapsed = packet.elapsedMs;
+        rescaleWaterfalls();
+    }
     if (matchesFilter(packet)) {
         appendRow(packet);
     }
@@ -94,12 +101,65 @@ function appendRow(packet) {
     row.querySelector('.c-url').textContent = packet.url || packet.label;
     const statusCell = row.querySelector('.c-status');
     statusCell.textContent = packet.status || (packet.success ? 'OK' : 'ERR');
-    row.querySelector('.c-latency').textContent = packet.elapsedMs + ' ms';
+    const cls = statusClass(packet.status);
+    if (cls) statusCell.classList.add(cls);
+    const latencyCell = row.querySelector('.c-latency');
+    latencyCell.textContent = '';
+    latencyCell.appendChild(buildWaterfall(packet));
     const size = packet.responseBody ? packet.responseBody.length : 0;
     row.querySelector('.c-size').textContent = (size / 1024).toFixed(2);
     if (!packet.success) row.classList.add('err');
     row.addEventListener('click', () => selectPacket(packet.id, row));
     el.tbody.appendChild(row);
+}
+
+// HTTP status -> semantic class (s2/s3/s4/s5); empty for non-HTTP/unknown.
+function statusClass(status) {
+    if (!status || status < 100) return '';
+    return 's' + Math.floor(status / 100);
+}
+
+// Inline timing waterfall: connect | wait (to first byte) | processing.
+// Each segment is sized as a fraction of the running max elapsedMs so rows compare visually.
+function buildWaterfall(packet) {
+    const connect = Math.max(0, packet.connectMs || 0);
+    const wait = Math.max(0, (packet.latencyMs || 0) - connect);
+    const proc = Math.max(0, (packet.elapsedMs || 0) - (packet.latencyMs || 0));
+    const wf = document.createElement('div');
+    wf.className = 'wf';
+    const bar = document.createElement('div');
+    bar.className = 'wf-bar';
+    bar.dataset.connect = connect;
+    bar.dataset.wait = wait;
+    bar.dataset.proc = proc;
+    bar.appendChild(seg('connect'));
+    bar.appendChild(seg('wait'));
+    bar.appendChild(seg('proc'));
+    const ms = document.createElement('span');
+    ms.className = 'wf-ms';
+    ms.textContent = (packet.elapsedMs || 0) + ' ms';
+    wf.appendChild(bar);
+    wf.appendChild(ms);
+    scaleBar(bar);
+    return wf;
+}
+
+function seg(kind) {
+    const s = document.createElement('span');
+    s.className = 'wf-seg ' + kind;
+    return s;
+}
+
+function scaleBar(bar) {
+    const scale = Math.max(state.maxElapsed, 1);
+    const w = (ms) => (Math.min(100, (Number(ms) / scale) * 100)) + '%';
+    bar.children[0].style.width = w(bar.dataset.connect);
+    bar.children[1].style.width = w(bar.dataset.wait);
+    bar.children[2].style.width = w(bar.dataset.proc);
+}
+
+function rescaleWaterfalls() {
+    document.querySelectorAll('.wf-bar').forEach(scaleBar);
 }
 
 function formatTime(iso) {
@@ -113,6 +173,11 @@ function selectPacket(id, row) {
     document.querySelectorAll('tr.pkt.selected').forEach(r => r.classList.remove('selected'));
     if (row) row.classList.add('selected');
     renderDetail(state.packets.find(p => p.id === id));
+    el.detailPane.classList.add('open');
+}
+
+function closeDetail() {
+    el.detailPane.classList.remove('open');
 }
 
 function renderDetail(packet) {
@@ -128,9 +193,9 @@ function renderDetail(packet) {
           + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">body truncated</span>' : '')
           + '</div>'
         + sectionHeaders('Request headers', packet.requestHeaders)
-        + bodyBlock('Request body', packet.requestBody, false, false)
+        + bodyBlock(reqTitle(packet), packet.requestBody, false, false)
         + sectionHeaders('Response headers', packet.responseHeaders)
-        + bodyBlock('Response body', packet.responseBody, packet.bodyBinary, packet.bodyTruncated)
+        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated)
         + (packet.failureMessage ? '<h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre>' : '')
         + '</div>';
 }
@@ -158,6 +223,20 @@ function bodyBlock(title, body, binary, truncated) {
     }
     if (truncated) note += ' (truncated)';
     return '<h3>' + title + note + '</h3><pre>' + esc(pretty) + '</pre>';
+}
+
+// For WebSocket samples the request body is the frame the client sent (↑) and the response body is
+// what it received (↓); for HTTP keep the plain labels. (Per-frame WS timelines need a direction
+// field on CapturedPacket — a backend change — so this is the honest view from current data.)
+function reqTitle(p) {
+    return p.type === 'WEBSOCKET'
+        ? '<span class="ws-dir up">↑</span>Sent frame'
+        : 'Request body';
+}
+function respTitle(p) {
+    return p.type === 'WEBSOCKET'
+        ? '<span class="ws-dir down">↓</span>Received frame'
+        : 'Response body';
 }
 
 function esc(s) {
@@ -201,10 +280,46 @@ el.clear.addEventListener('click', async () => {
     state.packets = [];
     state.seen = new Set();
     state.selectedId = null;
+    state.maxElapsed = 1;
     el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
     renderDetail(null);
+    closeDetail();
     try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
+});
+
+// ---- detail drawer + keyboard navigation ----
+el.detailClose.addEventListener('click', closeDetail);
+
+function visibleRows() {
+    return Array.from(el.tbody.querySelectorAll('tr.pkt'));
+}
+
+function moveSelection(delta) {
+    const rows = visibleRows();
+    if (rows.length === 0) return;
+    const current = rows.findIndex(r => r.dataset.id === String(state.selectedId));
+    let next = current + delta;
+    if (current === -1) next = delta > 0 ? 0 : rows.length - 1;
+    next = Math.max(0, Math.min(rows.length - 1, next));
+    const row = rows[next];
+    selectPacket(row.dataset.id, row);
+    row.scrollIntoView({ block: 'nearest' });
+}
+
+document.addEventListener('keydown', (ev) => {
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    if (ev.key === 'Escape') {
+        if (el.detailPane.classList.contains('open')) { closeDetail(); ev.preventDefault(); }
+        else if (typing) document.activeElement.blur();
+        return;
+    }
+    if (ev.key === '/' && !typing) { ev.preventDefault(); el.filterText.focus(); return; }
+    if (typing) return;
+    if (ev.key === 'j' || ev.key === 'ArrowDown') { ev.preventDefault(); moveSelection(1); }
+    else if (ev.key === 'k' || ev.key === 'ArrowUp') { ev.preventDefault(); moveSelection(-1); }
 });
 
 async function startRun(payload) {

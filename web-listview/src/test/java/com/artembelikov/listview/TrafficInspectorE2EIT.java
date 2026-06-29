@@ -128,10 +128,14 @@ class TrafficInspectorE2EIT {
             startRun(page, "POST", sentBody, "application/json");
             waitForRowCount(page, 1);
 
-            // open the first packet's detail
+            // each row renders an inline timing waterfall bar
+            assertThat(page.querySelector("#packet-body tr.pkt .wf-bar")).isNotNull();
+
+            // open the first packet's detail -> the drawer slides in
             page.click("#packet-body tr.pkt");
             page.waitForSelector(".detail h2",
                     new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#detail-pane.open")).isTrue();
 
             String detail = page.innerText("#detail-pane");
             // section titles are uppercased by CSS; assert case-insensitively
@@ -143,6 +147,13 @@ class TrafficInspectorE2EIT {
             assertThat(detail).contains("world");
             // the sent request body must be shown in its own section (pretty-printed JSON)
             assertThat(detail).contains("hello").contains("42");
+
+            // Escape closes the drawer
+            page.keyboard().press("Escape");
+            page.waitForFunction(
+                    "() => !document.querySelector('#detail-pane').classList.contains('open')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
         }
     }
 

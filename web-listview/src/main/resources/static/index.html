@@ -64,9 +64,12 @@
         </div>
     </div>
 
-    <div class="pane detailpane" id="detail-pane">
-        <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
-    </div>
+    <aside class="pane detailpane" id="detail-pane" aria-label="Packet detail">
+        <button type="button" id="detail-close" class="detail-close" title="Close (Esc)" aria-label="Close detail">×</button>
+        <div id="detail-content">
+            <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
+        </div>
+    </aside>
 </section>
 
 <template id="row-template">
