@@ -208,12 +208,14 @@ th, td {
 }
 th { position: sticky; top: 0; background: var(--bg-2); color: var(--muted); font-weight: 500; z-index: 1; }
 th.sortable { cursor: pointer; user-select: none; }
+/* every sortable column carries a faint ↕ affordance; the active one shows a bright ▲/▼ */
+th.sortable::after { content: " \2195"; color: var(--muted); opacity: .4; font-size: 10px; }
 th.sortable:hover { color: var(--text); }
-th.sortable::after { content: ""; color: var(--accent); font-size: 10px; }
-th.sortable[aria-sort="ascending"] { color: var(--text); }
-th.sortable[aria-sort="ascending"]::after { content: " \25B2"; }
-th.sortable[aria-sort="descending"] { color: var(--text); }
-th.sortable[aria-sort="descending"]::after { content: " \25BC"; }
+th.sortable:hover::after { opacity: .7; }
+th.sortable[aria-sort="ascending"],
+th.sortable[aria-sort="descending"] { color: var(--accent); }
+th.sortable[aria-sort="ascending"]::after { content: " \25B2"; color: var(--accent); opacity: 1; }
+th.sortable[aria-sort="descending"]::after { content: " \25BC"; color: var(--accent); opacity: 1; }
 td.c-url { max-width: 100%; }
 tr.pkt { cursor: pointer; }
 tr.pkt:hover { background: var(--bg-2); }
