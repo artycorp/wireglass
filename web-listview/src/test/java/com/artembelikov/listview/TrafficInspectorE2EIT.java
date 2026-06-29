@@ -53,6 +53,7 @@ class TrafficInspectorE2EIT {
         echoServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         echoServer.createContext("/", this::echo);
         echoServer.createContext("/html", this::echoHtml);
+        echoServer.createContext("/big", this::echoBig);
         echoServer.start();
         echoPort = echoServer.getAddress().getPort();
 
@@ -82,6 +83,23 @@ class TrafficInspectorE2EIT {
                 + "<p>The method is not allowed for the requested URL.</p>\n";
         byte[] out = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "text/html");
+        exchange.sendResponseHeaders(200, out.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(out);
+        }
+    }
+
+    private void echoBig(HttpExchange exchange) throws IOException {
+        StringBuilder sb = new StringBuilder("{\"items\":[");
+        for (int i = 0; i < 400; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"id\":").append(i).append(",\"name\":\"item-").append(i).append("\"}");
+        }
+        sb.append("]}");
+        byte[] out = sb.toString().getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, out.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(out);
@@ -281,6 +299,33 @@ class TrafficInspectorE2EIT {
             // HTML is highlighted (CodeMirror emits tag tokens), not dumped as plain text
             assertThat(page.querySelector("#detail-pane .cm-tag")).isNotNull();
             assertThat(page.innerText("#detail-pane")).containsIgnoringCase("Method Not Allowed");
+        }
+    }
+
+    @Test
+    void largeBodyViewerIsBoundedAndScrolls() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#run-toggle");
+            page.fill("#f-url", echoUrl("/big"));   // ~400-entry JSON, pretty-prints to many lines
+            page.selectOption("#f-method", "GET");
+            page.fill("#f-threads", "1");
+            page.fill("#f-iterations", "1");
+            page.click("button.primary");
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-pane .cm-host .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // the viewer is capped (does not grow to thousands of px) and scrolls internally
+            double height = ((Number) page.evaluate(
+                    "() => document.querySelector('#detail-pane .cm-host .CodeMirror')"
+                    + ".getBoundingClientRect().height")).doubleValue();
+            double viewport = ((Number) page.evaluate("() => window.innerHeight")).doubleValue();
+            assertThat(height).isLessThanOrEqualTo(viewport * 0.6);
+            // large bodies render with line numbers (virtualized scroll)
+            assertThat(page.querySelector("#detail-pane .CodeMirror-linenumber")).isNotNull();
         }
     }
 

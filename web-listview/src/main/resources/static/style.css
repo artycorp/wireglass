@@ -303,7 +303,7 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
-    max-height: 360px;
+    max-height: 55vh;
 }
 .detail table.kv { width: 100%; }
 .detail table.kv td { white-space: normal; }
@@ -343,6 +343,7 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .body-err { color: var(--err); font-size: 11px; }
 .body-err.ok { color: var(--s2); }
 
-/* read-only JSON viewer in the detail drawer */
+/* read-only JSON/HTML viewer in the detail drawer */
 .detail .cm-host { margin: 0; }
-.detail .cm-host .CodeMirror { max-height: 360px; }
+.detail .cm-host .CodeMirror { height: auto; }  /* large bodies get a fixed scroll height via JS */
+.detail h3 .body-size { color: var(--muted); font-weight: 400; text-transform: none; margin-left: 6px; }

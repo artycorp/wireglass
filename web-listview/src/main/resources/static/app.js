@@ -259,10 +259,12 @@ function sectionHeaders(title, headers) {
 // everything else falls back to a plain <pre>. CM instances are mounted after innerHTML is set.
 let cmHostSeq = 0;
 let cmHosts = [];
+const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
 function bodyBlock(title, body, binary, truncated) {
     if (body == null || body === '') return '';
-    let note = truncated ? ' (truncated)' : '';
+    let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
+        + (truncated ? ' (truncated)' : '');
     if (!binary) {
         const lang = detectLang(body);
         if (lang) {
@@ -274,6 +276,12 @@ function bodyBlock(title, body, binary, truncated) {
         note += ' (binary — hex preview)';
     }
     return '<h3>' + title + note + '</h3><pre>' + esc(body) + '</pre>';
+}
+
+function humanSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 // Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
@@ -295,14 +303,19 @@ function mountDetailEditors() {
     for (const h of cmHosts) {
         const host = document.getElementById(h.id);
         if (!host) continue;
+        // Small bodies grow to fit (viewportMargin: Infinity); large ones get a fixed, scrollable
+        // height so CodeMirror virtualizes rows instead of rendering a giant box in the drawer.
+        const lines = (h.code.match(/\n/g) || []).length + 1;
+        const big = h.code.length > 6000 || lines > 25;
         const cm = CodeMirror(host, {
             value: h.code,
             mode: h.mode,
             readOnly: true,
-            lineNumbers: false,
+            lineNumbers: big,
             lineWrapping: true,
-            viewportMargin: Infinity,
+            viewportMargin: big ? 10 : Infinity,
         });
+        if (big) cm.setSize(null, DETAIL_VIEWER_MAX);
         requestAnimationFrame(() => cm.refresh());  // drawer slides in; size after layout
     }
     cmHosts = [];
