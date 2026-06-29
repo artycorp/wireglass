@@ -27,6 +27,8 @@ const el = {
     method: document.getElementById('f-method'),
     body: document.getElementById('f-body'),
     bodyField: document.getElementById('f-body-field'),
+    bodyFormat: document.getElementById('f-body-format'),
+    bodyErr: document.getElementById('f-body-err'),
     threads: document.getElementById('f-threads'),
     iterations: document.getElementById('f-iterations'),
     contentType: document.getElementById('f-contentType'),
@@ -223,6 +225,7 @@ function closeDetail() {
 }
 
 function renderDetail(packet) {
+    cmHosts = [];
     if (!packet) { el.detail.innerHTML = '<div class="empty">Select a packet to inspect request &amp; response bodies.</div>'; return; }
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -240,6 +243,7 @@ function renderDetail(packet) {
         + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated)
         + (packet.failureMessage ? '<h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre>' : '')
         + '</div>';
+    mountDetailEditors();
 }
 
 function sectionHeaders(title, headers) {
@@ -251,20 +255,46 @@ function sectionHeaders(title, headers) {
     return '<h3>' + title + '</h3><table class="kv">' + rows + '</table>';
 }
 
+// Detail bodies: valid JSON is rendered into a read-only CodeMirror (highlight + pretty-print),
+// everything else falls back to a plain <pre>. CM instances are mounted after innerHTML is set.
+let cmHostSeq = 0;
+let cmHosts = [];
+
 function bodyBlock(title, body, binary, truncated) {
     if (body == null || body === '') return '';
-    let pretty = body;
-    let note = '';
+    let note = truncated ? ' (truncated)' : '';
     if (!binary) {
         const trimmed = body.trimStart();
         if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-            try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch (e) { /* keep raw */ }
+            try {
+                const pretty = JSON.stringify(JSON.parse(body), null, 2);
+                const id = 'cm-host-' + (++cmHostSeq);
+                cmHosts.push({ id, code: pretty });
+                return '<h3>' + title + note + '</h3><div class="cm-host" id="' + id + '"></div>';
+            } catch (e) { /* not valid JSON -> plain pre below */ }
         }
     } else {
-        note = ' (binary — hex preview)';
+        note += ' (binary — hex preview)';
     }
-    if (truncated) note += ' (truncated)';
-    return '<h3>' + title + note + '</h3><pre>' + esc(pretty) + '</pre>';
+    return '<h3>' + title + note + '</h3><pre>' + esc(body) + '</pre>';
+}
+
+function mountDetailEditors() {
+    if (!window.CodeMirror) { cmHosts = []; return; }
+    for (const h of cmHosts) {
+        const host = document.getElementById(h.id);
+        if (!host) continue;
+        const cm = CodeMirror(host, {
+            value: h.code,
+            mode: 'application/json',
+            readOnly: true,
+            lineNumbers: false,
+            lineWrapping: true,
+            viewportMargin: Infinity,
+        });
+        requestAnimationFrame(() => cm.refresh());  // drawer slides in; size after layout
+    }
+    cmHosts = [];
 }
 
 // For WebSocket samples the request body is the frame the client sent (↑) and the response body is
@@ -298,7 +328,7 @@ el.form.addEventListener('submit', async (ev) => {
     const payload = {
         url: el.url.value.trim(),
         method: el.method.value,
-        body: el.body.value || '',
+        body: bodyValue() || '',
         contentType: el.contentType.value.trim(),
         threads: parseInt(el.threads.value, 10),
         iterations: parseInt(el.iterations.value, 10),
@@ -403,15 +433,52 @@ function pollStatus(id) {
 function setRunPanel(open) {
     el.runPanel.classList.toggle('open', open);
     el.runToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) el.url.focus();
+    if (open) { refreshBodyEditor(); el.url.focus(); }
 }
 el.runToggle.addEventListener('click', () => setRunPanel(!el.runPanel.classList.contains('open')));
 
 function updateBodyVisibility() {
     const m = el.method.value;
     el.bodyField.hidden = !(m === 'POST' || m === 'PUT' || m === 'PATCH');
+    refreshBodyEditor();
 }
 el.method.addEventListener('change', updateBodyVisibility);
+
+// ---- request body editor (CodeMirror over the textarea) ----
+function initBodyEditor() {
+    if (state.bodyEditor || !window.CodeMirror) return;
+    state.bodyEditor = CodeMirror.fromTextArea(el.body, {
+        mode: 'application/json',
+        lineNumbers: true,
+        lineWrapping: true,
+        viewportMargin: Infinity,  // auto-grow with .CodeMirror{height:auto}
+    });
+    state.bodyEditor.on('change', validateBody);
+}
+function bodyValue() {
+    return state.bodyEditor ? state.bodyEditor.getValue() : el.body.value;
+}
+function refreshBodyEditor() {
+    // CM mis-measures while its container is display:none/clipped; refresh once visible.
+    if (state.bodyEditor && !el.bodyField.hidden) {
+        requestAnimationFrame(() => state.bodyEditor.refresh());
+    }
+}
+function validateBody() {
+    const v = bodyValue().trim();
+    if (!v) { el.bodyErr.textContent = ''; el.bodyErr.className = 'body-err'; return true; }
+    try { JSON.parse(v); el.bodyErr.textContent = '✓ valid JSON'; el.bodyErr.className = 'body-err ok'; return true; }
+    catch (e) { el.bodyErr.textContent = '✕ ' + e.message; el.bodyErr.className = 'body-err'; return false; }
+}
+el.bodyFormat.addEventListener('click', () => {
+    try {
+        state.bodyEditor.setValue(JSON.stringify(JSON.parse(bodyValue()), null, 2));
+        validateBody();
+    } catch (e) {
+        el.bodyErr.textContent = '✕ ' + e.message;
+        el.bodyErr.className = 'body-err';
+    }
+});
 
 // ---- filters ----
 function debounce(fn, ms) {
@@ -606,6 +673,7 @@ function showEmptyRow() {
 }
 
 // ---- init ----
+initBodyEditor();
 updateBodyVisibility();
 loadFilters();
 renderActiveFilters();

@@ -311,3 +311,32 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
 .badge.ok { background: rgba(63,185,80,.18); color: var(--ok); }
 .badge.err { background: rgba(248,81,73,.18); color: var(--err); }
+
+/* CodeMirror (vendored) themed to our dark palette */
+.CodeMirror {
+    height: auto;
+    background: var(--bg-3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.CodeMirror-gutters { background: var(--bg-2); border-right: 1px solid var(--border); }
+.CodeMirror-linenumber { color: var(--muted); }
+.CodeMirror-cursor { border-left-color: var(--text); }
+.CodeMirror-selected { background: rgba(76, 154, 255, .25); }
+.cm-s-default .cm-string { color: var(--s2); }
+.cm-s-default .cm-number { color: var(--s4); }
+.cm-s-default .cm-property { color: var(--accent); }
+.cm-s-default .cm-atom { color: var(--ws); }        /* true / false / null */
+.cm-s-default .cm-error { color: var(--err); }
+
+/* request-body editor toolbar */
+.field-head { display: flex; align-items: center; gap: 8px; }
+.mini { padding: 1px 8px; font-size: 11px; }
+.body-err { color: var(--err); font-size: 11px; }
+.body-err.ok { color: var(--s2); }
+
+/* read-only JSON viewer in the detail drawer */
+.detail .cm-host { margin: 0; }
+.detail .cm-host .CodeMirror { max-height: 360px; }

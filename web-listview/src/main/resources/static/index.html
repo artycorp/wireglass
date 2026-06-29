@@ -4,6 +4,7 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>jmeter-web-listview — traffic inspector</title>
+    <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css"/>
     <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -40,9 +41,13 @@
         <label class="field" id="f-contentType-field">content-type
             <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
         </label>
-        <label class="field f-grow" id="f-body-field" hidden>body
+        <div class="field f-grow" id="f-body-field" hidden>
+            <span class="field-head">body
+                <button type="button" id="f-body-format" class="mini" title="Pretty-print JSON">Format</button>
+                <span id="f-body-err" class="body-err" role="status"></span>
+            </span>
             <textarea id="f-body" name="body" placeholder='{"k":"v"}' rows="2"></textarea>
-        </label>
+        </div>
         <div class="run-actions">
             <button type="submit" class="primary">Run</button>
             <button type="button" id="demo-btn">Demo</button>
@@ -140,6 +145,8 @@
     </tr>
 </template>
 
+<script src="vendor/codemirror/codemirror.min.js"></script>
+<script src="vendor/codemirror/mode/javascript/javascript.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

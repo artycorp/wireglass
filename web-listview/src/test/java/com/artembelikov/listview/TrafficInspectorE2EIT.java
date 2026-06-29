@@ -141,6 +141,9 @@ class TrafficInspectorE2EIT {
                     new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
             assertThat(page.isVisible("#detail-pane.open")).isTrue();
 
+            // JSON bodies are rendered in a (highlighted) CodeMirror viewer
+            assertThat(page.querySelector("#detail-pane .CodeMirror")).isNotNull();
+
             String detail = page.innerText("#detail-pane");
             // section titles are uppercased by CSS; assert case-insensitively
             assertThat(detail).containsIgnoringCase("Response headers");
@@ -246,6 +249,21 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void formatButtonPrettyPrintsRequestBody() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#run-toggle");
+            page.selectOption("#f-method", "POST");  // reveals the body editor
+            page.evaluate("() => state.bodyEditor.setValue('{\"a\":1,\"b\":2}')");
+            page.click("#f-body-format");
+
+            String formatted = (String) page.evaluate("() => state.bodyEditor.getValue()");
+            assertThat(formatted).contains("\n");        // pretty-printed across multiple lines
+            assertThat(formatted).contains("\"a\": 1");   // 2-space indentation
+        }
+    }
+
+    @Test
     void externalJmeterDslTestAppearsInForm() throws Exception {
         // Open the UI first so its SSE stream is live, then run a *standalone* jmeter-java-dsl
         // plan in a separate thread that streams its samples to the form via TrafficCaptureClient
@@ -286,7 +304,8 @@ class TrafficInspectorE2EIT {
         page.fill("#f-iterations", "2");
         page.fill("#f-contentType", contentType == null ? "" : contentType);
         if (body != null && !body.isEmpty()) {
-            page.fill("#f-body", body);
+            // the textarea is wrapped by CodeMirror, so set the value through its editor API
+            page.evaluate("v => state.bodyEditor.setValue(v)", body);
         }
         page.click("button.primary");
     }
