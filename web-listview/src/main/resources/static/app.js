@@ -52,6 +52,7 @@ const el = {
     bodyModal: document.getElementById('body-modal'),
     bmTitle: document.getElementById('bm-title'),
     bmSize: document.getElementById('bm-size'),
+    bmToggle: document.getElementById('bm-toggle'),
     bmClose: document.getElementById('bm-close'),
     bmHost: document.getElementById('bm-host'),
     rowTpl: document.getElementById('row-template'),
@@ -230,7 +231,6 @@ function closeDetail() {
 }
 
 function renderDetail(packet) {
-    cmHosts = [];
     detailBodies = [];
     if (!packet) { el.detail.innerHTML = '<div class="empty">Select a packet to inspect request &amp; response bodies.</div>'; return; }
     const statusBadge = packet.success
@@ -249,7 +249,7 @@ function renderDetail(packet) {
         + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated)
         + (packet.failureMessage ? '<h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre>' : '')
         + '</div>';
-    mountDetailEditors();
+    mountDetailBodies();
 }
 
 function sectionHeaders(title, headers) {
@@ -261,11 +261,9 @@ function sectionHeaders(title, headers) {
     return '<h3>' + title + '</h3><table class="kv">' + rows + '</table>';
 }
 
-// Detail bodies: valid JSON is rendered into a read-only CodeMirror (highlight + pretty-print),
-// everything else falls back to a plain <pre>. CM instances are mounted after innerHTML is set.
-let cmHostSeq = 0;
-let cmHosts = [];
-let detailBodies = [];  // {title, code, mode, size} per rendered body, for the expand modal
+// Detail bodies: valid JSON/HTML is rendered into a read-only CodeMirror (highlight + pretty-print);
+// "Raw" falls back to a plain <pre> of the original bytes. Views are mounted after innerHTML is set.
+let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered body block
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
 function bodyBlock(title, body, binary, truncated) {
@@ -280,18 +278,20 @@ function bodyBlock(title, body, binary, truncated) {
     } else {
         note += ' (binary — hex preview)';
     }
-    const bi = detailBodies.push({ title: stripTags(title), code, mode, size: body.length }) - 1;
-    const expand = ' <button type="button" class="body-expand" data-body="' + bi
+    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false }) - 1;
+    // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
+    const toggle = mode ? viewToggleHtml(i) : '';
+    const expand = ' <button type="button" class="body-expand" data-body="' + i
         + '" title="Expand to full screen" aria-label="Expand">⤢</button>';
-    let inner;
-    if (mode) {
-        const id = 'cm-host-' + (++cmHostSeq);
-        cmHosts.push({ id, code, mode });
-        inner = '<div class="cm-host" id="' + id + '"></div>';
-    } else {
-        inner = '<pre>' + esc(code) + '</pre>';
-    }
-    return '<h3>' + title + note + expand + '</h3>' + inner;
+    return '<div class="body-block" data-body="' + i + '"><h3>' + title + note + toggle + expand + '</h3>'
+        + '<div class="cm-host" id="body-view-' + i + '"></div></div>';
+}
+
+function viewToggleHtml(i) {
+    return ' <span class="body-toggle" role="group" aria-label="View mode">'
+        + '<button type="button" class="bt active" data-body="' + i + '" data-raw="0">Formatted</button>'
+        + '<button type="button" class="bt" data-body="' + i + '" data-raw="1">Raw</button>'
+        + '</span>';
 }
 
 function stripTags(s) { return String(s).replace(/<[^>]*>/g, '').trim(); }
@@ -316,27 +316,37 @@ function detectLang(body) {
     return null;
 }
 
-function mountDetailEditors() {
-    if (!window.CodeMirror) { cmHosts = []; return; }
-    for (const h of cmHosts) {
-        const host = document.getElementById(h.id);
-        if (!host) continue;
-        // Small bodies grow to fit (viewportMargin: Infinity); large ones get a fixed, scrollable
-        // height so CodeMirror virtualizes rows instead of rendering a giant box in the drawer.
-        const lines = (h.code.match(/\n/g) || []).length + 1;
-        const big = h.code.length > 6000 || lines > 25;
-        const cm = CodeMirror(host, {
-            value: h.code,
-            mode: h.mode,
-            readOnly: true,
-            lineNumbers: big,
-            lineWrapping: true,
-            viewportMargin: big ? 10 : Infinity,
-        });
-        if (big) cm.setSize(null, DETAIL_VIEWER_MAX);
-        requestAnimationFrame(() => cm.refresh());  // drawer slides in; size after layout
+// Render one body into a container: raw (or unrecognized) -> plain <pre> of the original bytes;
+// formatted -> highlighted CodeMirror. `where` tunes sizing ('detail' caps height, 'modal' fills).
+function fillViewer(container, b, raw, where) {
+    container.innerHTML = '';
+    if (raw || !b.mode || !window.CodeMirror) {
+        const pre = document.createElement('pre');
+        pre.textContent = raw ? b.body : (b.mode ? b.code : b.body);
+        container.appendChild(pre);
+        return;
     }
-    cmHosts = [];
+    const lines = (b.code.match(/\n/g) || []).length + 1;
+    const big = b.code.length > 6000 || lines > 25;
+    const cm = CodeMirror(container, {
+        value: b.code,
+        mode: b.mode,
+        readOnly: true,
+        lineNumbers: where === 'modal' || big,
+        lineWrapping: true,
+        viewportMargin: (where === 'modal' || big) ? 10 : Infinity,
+    });
+    if (where === 'detail' && big) cm.setSize(null, DETAIL_VIEWER_MAX);
+    requestAnimationFrame(() => cm.refresh());  // drawer/modal animates in; size after layout
+}
+
+function renderDetailView(i) {
+    const c = document.getElementById('body-view-' + i);
+    if (c) fillViewer(c, detailBodies[i], detailBodies[i].raw, 'detail');
+}
+
+function mountDetailBodies() {
+    detailBodies.forEach((b, i) => renderDetailView(i));
 }
 
 // For WebSocket samples the request body is the frame the client sent (↑) and the response body is
@@ -408,40 +418,51 @@ el.clear.addEventListener('click', async () => {
 el.detailClose.addEventListener('click', closeDetail);
 
 // ---- full-screen body viewer modal ----
-let bodyModalCm = null;
+let modalBodyIndex = null;
+let modalRaw = false;
 function openBodyModal(i) {
     const b = detailBodies[i];
     if (!b) return;
+    modalBodyIndex = i;
+    modalRaw = false;
     el.bmTitle.textContent = b.title;
     el.bmSize.textContent = humanSize(b.size);
-    el.bmHost.innerHTML = '';
+    el.bmToggle.innerHTML = b.mode
+        ? '<button type="button" class="bt active" data-raw="0">Formatted</button>'
+          + '<button type="button" class="bt" data-raw="1">Raw</button>'
+        : '';
     el.bodyModal.hidden = false;
-    if (window.CodeMirror) {
-        bodyModalCm = CodeMirror(el.bmHost, {
-            value: b.code,
-            mode: b.mode || null,
-            readOnly: true,
-            lineNumbers: true,
-            lineWrapping: true,
-            viewportMargin: 10,  // virtualize: the whole point is huge bodies
-        });
-        requestAnimationFrame(() => bodyModalCm.refresh());
-    } else {
-        const pre = document.createElement('pre');
-        pre.textContent = b.code;
-        el.bmHost.appendChild(pre);
-    }
+    renderModalView();
+}
+function renderModalView() {
+    fillViewer(el.bmHost, detailBodies[modalBodyIndex], modalRaw, 'modal');
 }
 function closeBodyModal() {
     el.bodyModal.hidden = true;
     el.bmHost.innerHTML = '';
-    bodyModalCm = null;
+    modalBodyIndex = null;
 }
+
+// Detail body controls: Expand opens the modal; the Formatted/Raw toggle re-renders that block.
 el.detail.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('.body-expand');
-    if (btn) openBodyModal(Number(btn.dataset.body));
+    const exp = ev.target.closest('.body-expand');
+    if (exp) { openBodyModal(Number(exp.dataset.body)); return; }
+    const bt = ev.target.closest('.bt');
+    if (bt) {
+        const i = Number(bt.dataset.body);
+        detailBodies[i].raw = bt.dataset.raw === '1';
+        bt.parentElement.querySelectorAll('.bt').forEach(x => x.classList.toggle('active', x === bt));
+        renderDetailView(i);
+    }
 });
 el.bmClose.addEventListener('click', closeBodyModal);
+el.bmToggle.addEventListener('click', (ev) => {
+    const bt = ev.target.closest('.bt');
+    if (!bt) return;
+    modalRaw = bt.dataset.raw === '1';
+    el.bmToggle.querySelectorAll('.bt').forEach(x => x.classList.toggle('active', x === bt));
+    renderModalView();
+});
 el.bodyModal.addEventListener('click', (ev) => {
     if (ev.target === el.bodyModal) closeBodyModal();  // click backdrop to dismiss
 });

@@ -394,3 +394,31 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .bm-head .mini { margin-left: auto; }
 .bm-host { flex: 1; min-height: 0; }
 .bm-host .CodeMirror { height: 100%; border: none; border-radius: 0; }
+
+/* Formatted / Raw view toggle (in body headers and the modal head) */
+.body-toggle { display: inline-flex; vertical-align: middle; margin-left: 8px; }
+.body-toggle .bt {
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+}
+.body-toggle .bt:first-child { border-radius: 4px 0 0 4px; }
+.body-toggle .bt:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.body-toggle .bt.active { background: var(--bg-3); color: var(--text); border-color: var(--accent); }
+.bm-head #bm-toggle { margin-left: auto; }
+.bm-head .mini { margin-left: 0; }
+.bm-host pre {
+    height: 100%;
+    margin: 0;
+    padding: 8px 10px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--bg);
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

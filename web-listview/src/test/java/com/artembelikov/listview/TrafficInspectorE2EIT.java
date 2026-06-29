@@ -361,6 +361,32 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void rawFormattedToggleSwitchesBodyView() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);   // echo answers with JSON -> formatted by default
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-pane .cm-host .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // switch to Raw -> the highlighted editor is replaced by a plain <pre>
+            page.click("#detail-pane .body-toggle .bt[data-raw='1']");
+            page.waitForFunction(
+                    "() => { const v = document.querySelector('#detail-pane .cm-host');"
+                    + " return v && !v.querySelector('.CodeMirror') && !!v.querySelector('pre'); }",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // switch back to Formatted -> CodeMirror returns
+            page.click("#detail-pane .body-toggle .bt[data-raw='0']");
+            page.waitForSelector("#detail-pane .cm-host .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
     void formatButtonPrettyPrintsRequestBody() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
