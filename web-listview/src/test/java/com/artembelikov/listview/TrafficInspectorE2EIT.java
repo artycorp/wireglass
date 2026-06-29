@@ -182,6 +182,35 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void statusChipFiltersByClassAndResetRestores() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);  // echo server always answers 200 (a 2xx)
+            int total = waitForRowCount(page, 2);
+            assertThat(total).isGreaterThanOrEqualTo(2);
+
+            // the active-filters summary is hidden until a filter is applied
+            assertThat(page.isVisible("#active-filters")).isFalse();
+
+            // filter to 5xx only -> every 2xx row is hidden and the empty-state appears
+            page.click(".chip[data-status='5']");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#packet-body tr.pkt').length === 0",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.innerText("#packet-body")).containsIgnoringCase("No packets match");
+            assertThat(page.isVisible("#active-filters")).isTrue();
+
+            // Reset clears the facet and the rows come back
+            page.click("#reset-filters");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#packet-body tr.pkt').length >= " + total,
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
     void externalJmeterDslTestAppearsInForm() throws Exception {
         // Open the UI first so its SSE stream is live, then run a *standalone* jmeter-java-dsl
         // plan in a separate thread that streams its samples to the form via TrafficCaptureClient
@@ -215,12 +244,15 @@ class TrafficInspectorE2EIT {
     }
 
     private void startRun(Page page, String method, String body, String contentType) {
+        page.click("#run-toggle");  // the load form lives in a collapsible panel
         page.fill("#f-url", echoUrl("/"));
-        page.selectOption("#f-method", method);
+        page.selectOption("#f-method", method);  // selecting POST/PUT/PATCH reveals the body field
         page.fill("#f-threads", "1");
         page.fill("#f-iterations", "2");
-        page.fill("#f-body", body);
         page.fill("#f-contentType", contentType == null ? "" : contentType);
+        if (body != null && !body.isEmpty()) {
+            page.fill("#f-body", body);
+        }
         page.click("button.primary");
     }
 

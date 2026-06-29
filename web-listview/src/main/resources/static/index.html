@@ -9,41 +9,96 @@
 <body>
 <header class="topbar">
     <div class="brand">jmeter <span>web-listview</span></div>
-    <form id="run-form" class="run-form">
-        <input id="f-url" name="url" type="text" placeholder="https://httpbin.org/get"
-               value="https://httpbin.org/get" required/>
-        <select id="f-method" name="method">
-            <option>GET</option>
-            <option>POST</option>
-            <option>PUT</option>
-            <option>PATCH</option>
-            <option>DELETE</option>
-            <option>HEAD</option>
-        </select>
-        <input id="f-threads" name="threads" type="number" min="1" max="100" value="2" title="threads"/>
-        <input id="f-iterations" name="iterations" type="number" min="1" max="1000" value="3" title="iterations"/>
-        <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
-        <button type="submit" class="primary">Run</button>
-        <button type="button" id="demo-btn">Demo</button>
-        <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
-        <button type="button" id="clear-btn">Clear</button>
-        <textarea id="f-body" name="body" placeholder='request body (e.g. {"k":"v"}) for POST/PUT/PATCH' rows="1"></textarea>
-    </form>
+    <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel">
+        <span class="plus">+</span> New run <span class="caret">▾</span>
+    </button>
     <div id="run-status" class="run-status">idle</div>
 </header>
+
+<section id="run-panel" class="run-panel">
+    <form id="run-form" class="run-form">
+        <label class="field f-grow">url
+            <input id="f-url" name="url" type="text" placeholder="https://httpbin.org/get"
+                   value="https://httpbin.org/get" required/>
+        </label>
+        <label class="field">method
+            <select id="f-method" name="method">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+                <option>HEAD</option>
+            </select>
+        </label>
+        <label class="field">threads
+            <input id="f-threads" name="threads" type="number" min="1" max="100" value="2"/>
+        </label>
+        <label class="field">iterations
+            <input id="f-iterations" name="iterations" type="number" min="1" max="1000" value="3"/>
+        </label>
+        <label class="field" id="f-contentType-field">content-type
+            <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
+        </label>
+        <label class="field f-grow" id="f-body-field" hidden>body
+            <textarea id="f-body" name="body" placeholder='{"k":"v"}' rows="2"></textarea>
+        </label>
+        <div class="run-actions">
+            <button type="submit" class="primary">Run</button>
+            <button type="button" id="demo-btn">Demo</button>
+            <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
+            <button type="button" id="clear-btn" title="Clear captured packets">Clear</button>
+        </div>
+    </form>
+</section>
 
 <section class="bodygrid">
     <div class="pane listpane">
         <div class="pane-toolbar">
-            <input id="filter-text" type="text" placeholder="filter by url / label..."/>
-            <select id="filter-type">
-                <option value="">all types</option>
-                <option value="HTTP">HTTP</option>
-                <option value="WEBSOCKET">WebSocket</option>
-                <option value="TCP">TCP</option>
-            </select>
-            <label class="chk"><input id="filter-errors" type="checkbox"/> errors only</label>
-            <span id="packet-count" class="count">0 packets</span>
+            <div class="facets">
+                <div class="facet-group" role="group" aria-label="Type">
+                    <span class="facet-label">type</span>
+                    <button type="button" class="seg active" data-type="">all</button>
+                    <button type="button" class="seg http" data-type="HTTP">HTTP</button>
+                    <button type="button" class="seg ws" data-type="WEBSOCKET">WS</button>
+                    <button type="button" class="seg tcp" data-type="TCP">TCP</button>
+                </div>
+                <div class="facet-group" role="group" aria-label="Status">
+                    <span class="facet-label">status</span>
+                    <button type="button" class="chip s2" data-status="2" aria-pressed="false">2xx</button>
+                    <button type="button" class="chip s3" data-status="3" aria-pressed="false">3xx</button>
+                    <button type="button" class="chip s4" data-status="4" aria-pressed="false">4xx</button>
+                    <button type="button" class="chip s5" data-status="5" aria-pressed="false">5xx</button>
+                    <button type="button" class="chip failed" id="chip-failed" aria-pressed="false">⚠ failed</button>
+                </div>
+                <label class="facet-inline">method
+                    <select id="filter-method">
+                        <option value="">any</option>
+                        <option>GET</option>
+                        <option>POST</option>
+                        <option>PUT</option>
+                        <option>PATCH</option>
+                        <option>DELETE</option>
+                        <option>HEAD</option>
+                        <option>WS</option>
+                    </select>
+                </label>
+                <label class="facet-inline">latency ≥
+                    <input id="filter-latency" type="number" min="0" step="50" placeholder="0"/> ms
+                </label>
+                <div class="search-wrap">
+                    <input id="filter-text" type="text" placeholder="search url / label..."/>
+                    <label class="chk" title="also search request/response bodies">
+                        <input id="filter-bodies" type="checkbox"/> bodies
+                    </label>
+                </div>
+                <span id="packet-count" class="count">0 packets</span>
+            </div>
+            <div class="active-filters" id="active-filters" hidden>
+                <span class="af-label">active:</span>
+                <span id="active-tags"></span>
+                <button type="button" id="reset-filters" class="reset">Reset</button>
+            </div>
         </div>
         <div class="table-wrap">
             <table id="packet-table">

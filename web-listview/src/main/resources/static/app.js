@@ -5,16 +5,27 @@ const state = {
     seen: new Set(),      // packet ids already added (dedupe history vs. live SSE)
     selectedId: null,
     currentRunId: null,
-    filter: { text: '', type: '', errorsOnly: false },
+    filter: {
+        text: '',
+        searchBodies: false,
+        type: '',
+        method: '',
+        statusClasses: new Set(),  // numeric class buckets: 2,3,4,5
+        failedOnly: false,
+        minLatency: 0,
+    },
     es: null,             // EventSource
     maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
 };
 
 const el = {
     form: document.getElementById('run-form'),
+    runToggle: document.getElementById('run-toggle'),
+    runPanel: document.getElementById('run-panel'),
     url: document.getElementById('f-url'),
     method: document.getElementById('f-method'),
     body: document.getElementById('f-body'),
+    bodyField: document.getElementById('f-body-field'),
     threads: document.getElementById('f-threads'),
     iterations: document.getElementById('f-iterations'),
     contentType: document.getElementById('f-contentType'),
@@ -25,8 +36,13 @@ const el = {
     tbody: document.getElementById('packet-body'),
     count: document.getElementById('packet-count'),
     filterText: document.getElementById('filter-text'),
-    filterType: document.getElementById('filter-type'),
-    filterErrors: document.getElementById('filter-errors'),
+    filterBodies: document.getElementById('filter-bodies'),
+    filterMethod: document.getElementById('filter-method'),
+    filterLatency: document.getElementById('filter-latency'),
+    chipFailed: document.getElementById('chip-failed'),
+    activeFilters: document.getElementById('active-filters'),
+    activeTags: document.getElementById('active-tags'),
+    resetFilters: document.getElementById('reset-filters'),
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
     detailClose: document.getElementById('detail-close'),
@@ -58,9 +74,10 @@ function addPacket(packet) {
         rescaleWaterfalls();
     }
     if (matchesFilter(packet)) {
+        removeEmptyRow();
         appendRow(packet);
     }
-    el.count.textContent = state.packets.length + ' packets';
+    updateCount(el.tbody.querySelectorAll('tr.pkt').length);
 }
 
 // Load packets already captured by the backend (e.g. from an external jmeter-dsl test that ran
@@ -73,23 +90,33 @@ async function loadRecent() {
         for (const p of recent) {
             addPacket(p);
         }
+        rebuildList();  // normalize numbering/count + show empty-state if restored filters hide all
     } catch (e) {
         // ignore: live SSE will still carry new packets
     }
 }
 
+// Facets combine with AND across groups; within the status group selected classes are OR'd.
 function matchesFilter(p) {
-    if (state.filter.errorsOnly && p.success) return false;
-    if (state.filter.type && p.type !== state.filter.type) return false;
-    if (state.filter.text) {
-        const hay = (p.url + ' ' + p.label + ' ' + p.method).toLowerCase();
-        if (!hay.includes(state.filter.text.toLowerCase())) return false;
+    const f = state.filter;
+    if (f.type && p.type !== f.type) return false;
+    if (f.method && p.method !== f.method) return false;
+    if (f.failedOnly && p.success) return false;
+    if (f.statusClasses.size > 0) {
+        const cls = p.status ? Math.floor(p.status / 100) : 0;
+        if (!f.statusClasses.has(cls)) return false;
+    }
+    if (f.minLatency > 0 && (p.elapsedMs || 0) < f.minLatency) return false;
+    if (f.text) {
+        let hay = (p.url || '') + ' ' + (p.label || '') + ' ' + (p.method || '');
+        if (f.searchBodies) hay += ' ' + (p.requestBody || '') + ' ' + (p.responseBody || '');
+        if (!hay.toLowerCase().includes(f.text.toLowerCase())) return false;
     }
     return true;
 }
 
 function appendRow(packet) {
-    const idx = el.tbody.children.length + 1;
+    const idx = el.tbody.querySelectorAll('tr.pkt').length + 1;
     const row = el.rowTpl.content.firstElementChild.cloneNode(true);
     row.dataset.id = packet.id;
     row.querySelector('.c-idx').textContent = idx;
@@ -262,12 +289,14 @@ el.form.addEventListener('submit', async (ev) => {
         iterations: parseInt(el.iterations.value, 10),
     };
     await startRun(payload);
+    setRunPanel(false);  // collapse so the live list takes the screen
 });
 
 el.demo.addEventListener('click', async () => {
     ensureStream();
     const r = await fetch('/api/runs/demo', { method: 'POST' });
     afterStart(await r.json());
+    setRunPanel(false);
 });
 
 el.stop.addEventListener('click', async () => {
@@ -355,24 +384,172 @@ function pollStatus(id) {
     }, 1000);
 }
 
+// ---- run panel (collapsible) ----
+function setRunPanel(open) {
+    el.runPanel.classList.toggle('open', open);
+    el.runToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) el.url.focus();
+}
+el.runToggle.addEventListener('click', () => setRunPanel(!el.runPanel.classList.contains('open')));
+
+function updateBodyVisibility() {
+    const m = el.method.value;
+    el.bodyField.hidden = !(m === 'POST' || m === 'PUT' || m === 'PATCH');
+}
+el.method.addEventListener('change', updateBodyVisibility);
+
 // ---- filters ----
-el.filterText.addEventListener('input', () => { state.filter.text = el.filterText.value; rebuildList(); });
-el.filterType.addEventListener('change', () => { state.filter.type = el.filterType.value; rebuildList(); });
-el.filterErrors.addEventListener('change', () => { state.filter.errorsOnly = el.filterErrors.checked; rebuildList(); });
+function debounce(fn, ms) {
+    let h;
+    return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); };
+}
+function onFilterChange() { rebuildList(); renderActiveFilters(); saveFilters(); }
+
+// state setters that also sync the matching control (used by clicks, tag removal, reset, restore)
+function setType(v) {
+    state.filter.type = v;
+    document.querySelectorAll('.seg[data-type]').forEach(b => b.classList.toggle('active', b.dataset.type === v));
+}
+// NB: named setStatusClass (not setStatus) to avoid colliding with the run-status setter below.
+function setStatusClass(c, on) {
+    if (on) state.filter.statusClasses.add(c); else state.filter.statusClasses.delete(c);
+    const btn = document.querySelector('.chip[data-status="' + c + '"]');
+    if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+function setFailed(on) {
+    state.filter.failedOnly = on;
+    el.chipFailed.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+function setMethod(v) { state.filter.method = v; el.filterMethod.value = v; }
+function setLatency(v) { state.filter.minLatency = v; el.filterLatency.value = v || ''; }
+function setText(v, bodies) {
+    state.filter.text = v;
+    el.filterText.value = v;
+    if (bodies !== undefined) { state.filter.searchBodies = bodies; el.filterBodies.checked = bodies; }
+}
+
+document.querySelectorAll('.seg[data-type]').forEach(btn => {
+    btn.addEventListener('click', () => { setType(btn.dataset.type); onFilterChange(); });
+});
+document.querySelectorAll('.chip[data-status]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const c = Number(btn.dataset.status);
+        setStatusClass(c, !state.filter.statusClasses.has(c));
+        onFilterChange();
+    });
+});
+el.chipFailed.addEventListener('click', () => { setFailed(!state.filter.failedOnly); onFilterChange(); });
+el.filterMethod.addEventListener('change', () => { state.filter.method = el.filterMethod.value; onFilterChange(); });
+el.filterLatency.addEventListener('input', debounce(() => {
+    state.filter.minLatency = Number(el.filterLatency.value) || 0;
+    onFilterChange();
+}, 150));
+el.filterText.addEventListener('input', debounce(() => {
+    state.filter.text = el.filterText.value.trim();
+    onFilterChange();
+}, 150));
+el.filterBodies.addEventListener('change', () => { state.filter.searchBodies = el.filterBodies.checked; onFilterChange(); });
+el.resetFilters.addEventListener('click', resetFilters);
+
+function resetFilters() {
+    setType('');
+    Array.from(state.filter.statusClasses).forEach(c => setStatusClass(c, false));
+    setFailed(false);
+    setMethod('');
+    setLatency(0);
+    setText('', false);
+    onFilterChange();
+}
+
+function renderActiveFilters() {
+    const f = state.filter;
+    el.activeTags.innerHTML = '';
+    const tags = [];
+    if (f.type) tags.push(afTag('type=' + f.type, () => { setType(''); onFilterChange(); }));
+    if (f.method) tags.push(afTag('method=' + f.method, () => { setMethod(''); onFilterChange(); }));
+    Array.from(f.statusClasses).sort().forEach(c =>
+        tags.push(afTag(c + 'xx', () => { setStatusClass(c, false); onFilterChange(); })));
+    if (f.failedOnly) tags.push(afTag('failed', () => { setFailed(false); onFilterChange(); }));
+    if (f.minLatency > 0) tags.push(afTag('latency≥' + f.minLatency + 'ms', () => { setLatency(0); onFilterChange(); }));
+    if (f.text) tags.push(afTag((f.searchBodies ? 'body~' : '~') + f.text, () => { setText('', false); onFilterChange(); }));
+    tags.forEach(t => el.activeTags.appendChild(t));
+    el.activeFilters.hidden = tags.length === 0;
+}
+
+function afTag(text, onRemove) {
+    const span = document.createElement('span');
+    span.className = 'af-tag';
+    span.appendChild(document.createTextNode(text + ' '));
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '✕';
+    x.setAttribute('aria-label', 'remove filter ' + text);
+    x.addEventListener('click', onRemove);
+    span.appendChild(x);
+    return span;
+}
+
+const FILTER_KEY = 'jmlv.filter';
+function saveFilters() {
+    try {
+        const f = state.filter;
+        localStorage.setItem(FILTER_KEY, JSON.stringify({
+            text: f.text, searchBodies: f.searchBodies, type: f.type, method: f.method,
+            statusClasses: Array.from(f.statusClasses), failedOnly: f.failedOnly, minLatency: f.minLatency,
+        }));
+    } catch (e) { /* storage unavailable; filters just won't persist */ }
+}
+function loadFilters() {
+    try {
+        const raw = localStorage.getItem(FILTER_KEY);
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        setType(d.type || '');
+        (d.statusClasses || []).map(Number).filter(n => n >= 1 && n <= 5).forEach(c => setStatusClass(c, true));
+        setFailed(!!d.failedOnly);
+        setMethod(d.method || '');
+        setLatency(Number(d.minLatency) || 0);
+        setText(d.text || '', !!d.searchBodies);
+    } catch (e) { /* ignore malformed saved state */ }
+}
 
 function rebuildList() {
     el.tbody.innerHTML = '';
-    let i = 0;
+    let shown = 0;
     for (const p of state.packets) {
-        if (matchesFilter(p)) {
-            appendRow(p);
-            // appendRow increments count from children length; re-set index manually
-            el.tbody.lastElementChild.querySelector('.c-idx').textContent = ++i;
-        }
+        if (matchesFilter(p)) { appendRow(p); shown++; }
     }
-    el.count.textContent = state.packets.length + ' packets';
+    updateCount(shown);
+    if (shown === 0 && state.packets.length > 0) showEmptyRow();
 }
 
+function updateCount(shown) {
+    const total = state.packets.length;
+    el.count.textContent = (shown === total) ? total + ' packets' : shown + ' / ' + total + ' packets';
+}
+
+function removeEmptyRow() {
+    const er = el.tbody.querySelector('.empty-row');
+    if (er) er.remove();
+}
+function showEmptyRow() {
+    const tr = document.createElement('tr');
+    tr.className = 'empty-row';
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.append('No packets match these filters — ');
+    const a = document.createElement('a');
+    a.textContent = 'Reset';
+    a.addEventListener('click', resetFilters);
+    td.appendChild(a);
+    tr.appendChild(td);
+    el.tbody.appendChild(tr);
+}
+
+// ---- init ----
+updateBodyVisibility();
+loadFilters();
+renderActiveFilters();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
 // backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)
