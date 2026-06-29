@@ -16,6 +16,7 @@ const state = {
     },
     es: null,             // EventSource
     maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
+    sort: { key: null, dir: 'asc' },  // null key = insertion order
 };
 
 const el = {
@@ -73,11 +74,23 @@ function addPacket(packet) {
         state.maxElapsed = packet.elapsedMs;
         rescaleWaterfalls();
     }
+    if (state.sort.key) {
+        scheduleRebuild();  // sorted view: a plain append would land out of order
+        return;
+    }
     if (matchesFilter(packet)) {
         removeEmptyRow();
         appendRow(packet);
     }
     updateCount(el.tbody.querySelectorAll('tr.pkt').length);
+}
+
+// Coalesce bursty SSE updates into one re-render per frame while a sort is active.
+let rebuildScheduled = false;
+function scheduleRebuild() {
+    if (rebuildScheduled) return;
+    rebuildScheduled = true;
+    requestAnimationFrame(() => { rebuildScheduled = false; rebuildList(); });
 }
 
 // Load packets already captured by the backend (e.g. from an external jmeter-dsl test that ran
@@ -515,12 +528,56 @@ function loadFilters() {
 
 function rebuildList() {
     el.tbody.innerHTML = '';
-    let shown = 0;
-    for (const p of state.packets) {
-        if (matchesFilter(p)) { appendRow(p); shown++; }
+    let rows = state.packets.filter(matchesFilter);
+    if (state.sort.key) {
+        const dir = state.sort.dir === 'desc' ? -1 : 1;
+        rows = rows.slice().sort((a, b) => comparePackets(a, b, state.sort.key) * dir);
     }
-    updateCount(shown);
-    if (shown === 0 && state.packets.length > 0) showEmptyRow();
+    for (const p of rows) appendRow(p);
+    updateCount(rows.length);
+    if (rows.length === 0 && state.packets.length > 0) showEmptyRow();
+}
+
+function comparePackets(a, b, key) {
+    switch (key) {
+        case 'time': return (Date.parse(a.timestamp) || 0) - (Date.parse(b.timestamp) || 0);
+        case 'type': return (a.type || '').localeCompare(b.type || '');
+        case 'method': return (a.method || '').localeCompare(b.method || '');
+        case 'url': return (a.url || a.label || '').localeCompare(b.url || b.label || '');
+        case 'status': return (a.status || 0) - (b.status || 0);
+        case 'latency': return (a.elapsedMs || 0) - (b.elapsedMs || 0);
+        case 'size': return bodyLen(a) - bodyLen(b);
+        default: return 0;
+    }
+}
+function bodyLen(p) { return p.responseBody ? p.responseBody.length : 0; }
+
+// ---- column sorting ----
+document.querySelectorAll('th.sortable').forEach(th => {
+    th.tabIndex = 0;
+    th.addEventListener('click', () => toggleSort(th.dataset.sort));
+    th.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort(th.dataset.sort); }
+    });
+});
+
+// 3-state cycle on a column: ascending -> descending -> off (back to insertion order).
+function toggleSort(key) {
+    const s = state.sort;
+    if (s.key !== key) { s.key = key; s.dir = 'asc'; }
+    else if (s.dir === 'asc') { s.dir = 'desc'; }
+    else { s.key = null; s.dir = 'asc'; }
+    updateSortIndicators();
+    rebuildList();
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.setAttribute('aria-sort',
+            th.dataset.sort === state.sort.key
+                ? (state.sort.dir === 'desc' ? 'descending' : 'ascending')
+                : 'none');
+    });
 }
 
 function updateCount(shown) {

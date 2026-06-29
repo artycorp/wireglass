@@ -211,6 +211,37 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void clickingLatencyHeaderSortsAndCyclesIndicator() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 2);
+
+            String header = "th[data-sort='latency']";
+
+            // first click -> ascending; rendered latency values are non-decreasing
+            page.click(header);
+            assertThat(page.getAttribute(header, "aria-sort")).isEqualTo("ascending");
+            assertThat(latenciesNonDecreasing(page)).isTrue();
+
+            // second click -> descending
+            page.click(header);
+            assertThat(page.getAttribute(header, "aria-sort")).isEqualTo("descending");
+
+            // third click -> off (back to insertion order)
+            page.click(header);
+            assertThat(page.getAttribute(header, "aria-sort")).isEqualTo("none");
+        }
+    }
+
+    private static boolean latenciesNonDecreasing(Page page) {
+        return (Boolean) page.evaluate(
+                "() => { const v = [...document.querySelectorAll('#packet-body .wf-ms')]"
+                + ".map(e => parseInt(e.textContent, 10));"
+                + " for (let i = 1; i < v.length; i++) if (v[i] < v[i - 1]) return false; return true; }");
+    }
+
+    @Test
     void externalJmeterDslTestAppearsInForm() throws Exception {
         // Open the UI first so its SSE stream is live, then run a *standalone* jmeter-java-dsl
         // plan in a separate thread that streams its samples to the form via TrafficCaptureClient
