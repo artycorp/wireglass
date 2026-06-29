@@ -52,6 +52,7 @@ class TrafficInspectorE2EIT {
     void setUp() throws IOException {
         echoServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         echoServer.createContext("/", this::echo);
+        echoServer.createContext("/html", this::echoHtml);
         echoServer.start();
         echoPort = echoServer.getAddress().getPort();
 
@@ -68,6 +69,19 @@ class TrafficInspectorE2EIT {
                 + "\",\"receivedBody\":\"" + received + "\"}";
         byte[] out = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, out.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(out);
+        }
+    }
+
+    private void echoHtml(HttpExchange exchange) throws IOException {
+        String body = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n"
+                + "<title>405 Method Not Allowed</title>\n"
+                + "<h1>Method Not Allowed</h1>\n"
+                + "<p>The method is not allowed for the requested URL.</p>\n";
+        byte[] out = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "text/html");
         exchange.sendResponseHeaders(200, out.length);
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(out);
@@ -246,6 +260,28 @@ class TrafficInspectorE2EIT {
                 "() => { const v = [...document.querySelectorAll('#packet-body .wf-ms')]"
                 + ".map(e => parseInt(e.textContent, 10));"
                 + " for (let i = 1; i < v.length; i++) if (v[i] < v[i - 1]) return false; return true; }");
+    }
+
+    @Test
+    void htmlResponseBodyIsHighlighted() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#run-toggle");
+            page.fill("#f-url", echoUrl("/html"));   // returns a text/html body
+            page.selectOption("#f-method", "GET");
+            page.fill("#f-threads", "1");
+            page.fill("#f-iterations", "1");
+            page.click("button.primary");
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-pane .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // HTML is highlighted (CodeMirror emits tag tokens), not dumped as plain text
+            assertThat(page.querySelector("#detail-pane .cm-tag")).isNotNull();
+            assertThat(page.innerText("#detail-pane")).containsIgnoringCase("Method Not Allowed");
+        }
     }
 
     @Test

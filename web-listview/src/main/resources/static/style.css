@@ -330,6 +330,12 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .cm-s-default .cm-property { color: var(--accent); }
 .cm-s-default .cm-atom { color: var(--ws); }        /* true / false / null */
 .cm-s-default .cm-error { color: var(--err); }
+/* HTML / XML tokens */
+.cm-s-default .cm-tag { color: var(--accent); }
+.cm-s-default .cm-attribute { color: var(--s4); }
+.cm-s-default .cm-meta { color: var(--ws); }         /* <!DOCTYPE ...>, <?xml ...?> */
+.cm-s-default .cm-comment { color: var(--muted); font-style: italic; }
+.cm-s-default .cm-bracket { color: var(--muted); }
 
 /* request-body editor toolbar */
 .field-head { display: flex; align-items: center; gap: 8px; }

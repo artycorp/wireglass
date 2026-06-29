@@ -264,19 +264,30 @@ function bodyBlock(title, body, binary, truncated) {
     if (body == null || body === '') return '';
     let note = truncated ? ' (truncated)' : '';
     if (!binary) {
-        const trimmed = body.trimStart();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-            try {
-                const pretty = JSON.stringify(JSON.parse(body), null, 2);
-                const id = 'cm-host-' + (++cmHostSeq);
-                cmHosts.push({ id, code: pretty });
-                return '<h3>' + title + note + '</h3><div class="cm-host" id="' + id + '"></div>';
-            } catch (e) { /* not valid JSON -> plain pre below */ }
+        const lang = detectLang(body);
+        if (lang) {
+            const id = 'cm-host-' + (++cmHostSeq);
+            cmHosts.push({ id, code: lang.code, mode: lang.mode });
+            return '<h3>' + title + note + '</h3><div class="cm-host" id="' + id + '"></div>';
         }
     } else {
         note += ' (binary — hex preview)';
     }
     return '<h3>' + title + note + '</h3><pre>' + esc(body) + '</pre>';
+}
+
+// Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
+// as-is; anything else returns null so the caller falls back to a plain <pre>.
+function detectLang(body) {
+    const t = body.trimStart();
+    if (t.startsWith('{') || t.startsWith('[')) {
+        try { return { code: JSON.stringify(JSON.parse(body), null, 2), mode: 'application/json' }; }
+        catch (e) { /* not valid JSON */ }
+    }
+    if (t.startsWith('<')) {
+        return { code: body, mode: { name: 'xml', htmlMode: true } };
+    }
+    return null;
 }
 
 function mountDetailEditors() {
@@ -286,7 +297,7 @@ function mountDetailEditors() {
         if (!host) continue;
         const cm = CodeMirror(host, {
             value: h.code,
-            mode: 'application/json',
+            mode: h.mode,
             readOnly: true,
             lineNumbers: false,
             lineWrapping: true,
