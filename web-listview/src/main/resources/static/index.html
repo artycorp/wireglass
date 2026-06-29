@@ -151,6 +151,13 @@
             <span id="bm-title" class="bm-title"></span>
             <span id="bm-size" class="body-size"></span>
             <span id="bm-toggle" class="body-toggle" role="group" aria-label="View mode"></span>
+            <div id="bm-search-wrap" class="bm-search-wrap">
+                <input id="bm-search" type="text" placeholder="find in body…" aria-label="Find in body"/>
+                <label class="chk" title="Treat the query as a regular expression"><input id="bm-regex" type="checkbox"/> regex</label>
+                <span id="bm-count" class="bm-count"></span>
+                <button type="button" id="bm-prev" class="mini" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button>
+                <button type="button" id="bm-next" class="mini" title="Next match (Enter)" aria-label="Next match">↓</button>
+            </div>
             <button type="button" id="bm-close" class="mini" title="Close (Esc)" aria-label="Close">✕</button>
         </div>
         <div id="bm-host" class="bm-host"></div>
@@ -158,6 +165,7 @@
 </div>
 
 <script src="vendor/codemirror/codemirror.min.js"></script>
+<script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
 <script src="vendor/codemirror/mode/javascript/javascript.min.js"></script>
 <script src="vendor/codemirror/mode/xml/xml.min.js"></script>
 <script src="app.js"></script>

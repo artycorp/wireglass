@@ -53,6 +53,11 @@ const el = {
     bmTitle: document.getElementById('bm-title'),
     bmSize: document.getElementById('bm-size'),
     bmToggle: document.getElementById('bm-toggle'),
+    bmSearch: document.getElementById('bm-search'),
+    bmRegex: document.getElementById('bm-regex'),
+    bmCount: document.getElementById('bm-count'),
+    bmPrev: document.getElementById('bm-prev'),
+    bmNext: document.getElementById('bm-next'),
     bmClose: document.getElementById('bm-close'),
     bmHost: document.getElementById('bm-host'),
     rowTpl: document.getElementById('row-template'),
@@ -324,7 +329,7 @@ function fillViewer(container, b, raw, where) {
         const pre = document.createElement('pre');
         pre.textContent = raw ? b.body : (b.mode ? b.code : b.body);
         container.appendChild(pre);
-        return;
+        return null;
     }
     const lines = (b.code.match(/\n/g) || []).length + 1;
     const big = b.code.length > 6000 || lines > 25;
@@ -338,6 +343,7 @@ function fillViewer(container, b, raw, where) {
     });
     if (where === 'detail' && big) cm.setSize(null, DETAIL_VIEWER_MAX);
     requestAnimationFrame(() => cm.refresh());  // drawer/modal animates in; size after layout
+    return cm;
 }
 
 function renderDetailView(i) {
@@ -417,9 +423,14 @@ el.clear.addEventListener('click', async () => {
 // ---- detail drawer + keyboard navigation ----
 el.detailClose.addEventListener('click', closeDetail);
 
-// ---- full-screen body viewer modal ----
+// ---- full-screen body viewer modal (with in-body find) ----
 let modalBodyIndex = null;
 let modalRaw = false;
+let modalCm = null;
+let searchMarks = [];
+let searchHits = [];
+let searchIdx = -1;
+
 function openBodyModal(i) {
     const b = detailBodies[i];
     if (!b) return;
@@ -431,16 +442,68 @@ function openBodyModal(i) {
         ? '<button type="button" class="bt active" data-raw="0">Formatted</button>'
           + '<button type="button" class="bt" data-raw="1">Raw</button>'
         : '';
+    el.bmSearch.value = '';
+    el.bmRegex.checked = false;
+    el.bmSearch.classList.remove('invalid');
     el.bodyModal.hidden = false;
     renderModalView();
+    el.bmSearch.focus();
 }
 function renderModalView() {
-    fillViewer(el.bmHost, detailBodies[modalBodyIndex], modalRaw, 'modal');
+    modalCm = fillViewer(el.bmHost, detailBodies[modalBodyIndex], modalRaw, 'modal');
+    runBodySearch();  // re-apply the current query to the (re)rendered content
 }
 function closeBodyModal() {
+    clearBodySearch();
     el.bodyModal.hidden = true;
     el.bmHost.innerHTML = '';
     modalBodyIndex = null;
+    modalCm = null;
+}
+
+function clearBodySearch() {
+    searchMarks.forEach(m => m.clear());
+    searchMarks = [];
+    searchHits = [];
+    searchIdx = -1;
+}
+function runBodySearch() {
+    clearBodySearch();
+    const raw = el.bmSearch.value;
+    if (!modalCm || !raw) { el.bmCount.textContent = ''; el.bmSearch.classList.remove('invalid'); return; }
+    let query = raw;
+    if (el.bmRegex.checked) {
+        try { query = new RegExp(raw, 'gi'); el.bmSearch.classList.remove('invalid'); }
+        catch (e) { el.bmSearch.classList.add('invalid'); el.bmCount.textContent = 'bad regex'; return; }
+    } else {
+        el.bmSearch.classList.remove('invalid');
+    }
+    const cur = modalCm.getSearchCursor(query, CodeMirror.Pos(modalCm.firstLine(), 0), { caseFold: true });
+    while (cur.findNext()) {
+        const from = cur.from(), to = cur.to();
+        if (from.line === to.line && from.ch === to.ch) break;  // guard zero-length regex matches
+        searchHits.push({ from, to });
+        searchMarks.push(modalCm.markText(from, to, { className: 'cm-search-hit' }));
+        if (searchHits.length >= 5000) break;
+    }
+    searchIdx = searchHits.length ? 0 : -1;
+    focusHit();
+    updateSearchCount();
+}
+function focusHit() {
+    if (searchIdx < 0) return;
+    const h = searchHits[searchIdx];
+    modalCm.setSelection(h.from, h.to);
+    modalCm.scrollIntoView({ from: h.from, to: h.to }, 80);
+}
+function updateSearchCount() {
+    el.bmCount.textContent = searchHits.length ? (searchIdx + 1) + '/' + searchHits.length : '0';
+}
+function stepSearch(delta) {
+    if (!searchHits.length) return;
+    searchIdx = (searchIdx + delta + searchHits.length) % searchHits.length;
+    focusHit();
+    updateSearchCount();
 }
 
 // Detail body controls: Expand opens the modal; the Formatted/Raw toggle re-renders that block.
@@ -463,6 +526,13 @@ el.bmToggle.addEventListener('click', (ev) => {
     el.bmToggle.querySelectorAll('.bt').forEach(x => x.classList.toggle('active', x === bt));
     renderModalView();
 });
+el.bmSearch.addEventListener('input', runBodySearch);
+el.bmRegex.addEventListener('change', runBodySearch);
+el.bmSearch.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); stepSearch(ev.shiftKey ? -1 : 1); }
+});
+el.bmPrev.addEventListener('click', () => stepSearch(-1));
+el.bmNext.addEventListener('click', () => stepSearch(1));
 el.bodyModal.addEventListener('click', (ev) => {
     if (ev.target === el.bodyModal) closeBodyModal();  // click backdrop to dismiss
 });

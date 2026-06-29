@@ -361,6 +361,48 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void modalBodySearchFindsMatchesAndSupportsRegex() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#run-toggle");
+            page.fill("#f-url", echoUrl("/big"));   // many "item-N" entries
+            page.selectOption("#f-method", "GET");
+            page.fill("#f-threads", "1");
+            page.fill("#f-iterations", "1");
+            page.click("button.primary");
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-pane .body-expand",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            page.click("#detail-pane .body-expand");
+            page.waitForSelector("#body-modal .CodeMirror",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // plain substring search highlights matches and reports a count
+            page.fill("#bm-search", "item-5");
+            page.waitForSelector("#body-modal .cm-search-hit",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.innerText("#bm-count")).contains("/");
+
+            // regex search
+            page.check("#bm-regex");
+            page.fill("#bm-search", "item-\\d+");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#body-modal .cm-search-hit').length > 0",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // an invalid regex is flagged, not thrown
+            page.fill("#bm-search", "[unclosed");
+            page.waitForFunction(
+                    "() => document.querySelector('#bm-search').classList.contains('invalid')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
     void rawFormattedToggleSwitchesBodyView() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

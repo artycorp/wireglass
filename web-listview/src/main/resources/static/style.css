@@ -422,3 +422,20 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     background: var(--bg);
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+/* in-body find (modal head) */
+.bm-head #bm-toggle { margin-left: 8px; }   /* override earlier auto; search group goes right */
+.bm-search-wrap { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+#bm-search {
+    width: 200px;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+#bm-search.invalid { border-color: var(--err); }
+.bm-search-wrap .chk { color: var(--muted); display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.bm-count { color: var(--muted); font-size: 11px; min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
+.cm-search-hit { background: rgba(210, 153, 34, .32); border-radius: 2px; }
