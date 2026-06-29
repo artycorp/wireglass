@@ -7,6 +7,14 @@ spring:
   mvc:
     async:
       request-timeout: -1   # SSE streams should not be timed out by Spring MVC
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # Static UI assets (app.js/style.css/index.html) change during development; force the
+          # browser to revalidate every load (conditional GET -> 304 when unchanged) so it never
+          # serves a stale script. Without this the browser cached app.js and silently ran old code.
+          no-cache: true
 
 app:
   listview:

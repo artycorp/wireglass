@@ -3,6 +3,7 @@ package com.artembelikov.listview.web;
 import com.artembelikov.listview.capture.PacketBus;
 import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,15 +30,30 @@ public class TrafficStreamController {
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream() {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
+        AtomicReference<PacketBus.Subscription> subRef = new AtomicReference<>();
         PacketBus.Subscription subscription = bus.subscribe(packet -> {
             try {
                 emitter.send(SseEmitter.event()
                         .name("packet")
                         .data(packet, MediaType.APPLICATION_JSON));
             } catch (IOException | IllegalStateException e) {
-                emitter.completeWithError(e);
+                // Client went away (page reload / navigate / EventSource reconnect). Stop sending
+                // and finish quietly. NOTE: completeWithError() would trigger an error dispatch on
+                // the already-broken connection and make Tomcat log a noisy "Cannot start async:
+                // [ERROR]" stack trace, so we unsubscribe and complete() normally instead.
+                PacketBus.Subscription s = subRef.get();
+                if (s != null) {
+                    s.close();
+                }
+                LOG.debug("SSE client disconnected, closing stream: {}", e.toString());
+                try {
+                    emitter.complete();
+                } catch (RuntimeException ignored) {
+                    // already torn down
+                }
             }
         });
+        subRef.set(subscription);
         emitter.onCompletion(subscription::close);
         emitter.onTimeout(() -> {
             subscription.close();
