@@ -624,4 +624,42 @@ class TrafficInspectorE2EIT {
                     "() => matchesLinkUrl('https://h/orders/42','(')")).isFalse();
         }
     }
+
+    @Test
+    void detailPaneShowsMatchingDashboardLinksWithSafeHref() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#dashboard-toggle");
+
+            // matching packet link (echo host is 127.0.0.1); name carries a quote to prove escaping
+            page.fill("#dash-name", "Grafana \"prod\"");
+            page.selectOption("#dash-scope", "packet");
+            page.fill("#dash-url", "https://grafana.example/d/UID?host={host}&from={fromMs}");
+            page.fill("#dash-match", "127.0.0.1");
+            page.click("#dash-save");
+
+            // non-matching packet link
+            page.fill("#dash-name", "Other");
+            page.fill("#dash-url", "https://other/{host}");
+            page.fill("#dash-match", "no-such-host");
+            page.click("#dash-save");
+            page.click("#dashboard-toggle");  // close panel
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-dashboards .dash-link",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            // only the matching link is shown, with a safe encoded href and safe rel/target
+            int count = ((Number) page.evaluate(
+                    "() => document.querySelectorAll('#detail-dashboards .dash-link').length")).intValue();
+            assertThat(count).isEqualTo(1);
+            com.microsoft.playwright.ElementHandle a = page.querySelector("#detail-dashboards .dash-link");
+            assertThat(a.innerText()).contains("Grafana");
+            assertThat(a.getAttribute("href")).startsWith("https://grafana.example/").contains("host=127.0.0.1");
+            assertThat(a.getAttribute("rel")).contains("noopener");
+            assertThat(a.getAttribute("target")).isEqualTo("_blank");
+        }
+    }
 }

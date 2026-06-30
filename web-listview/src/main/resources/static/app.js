@@ -329,6 +329,7 @@ function renderDetail(packet) {
         + overviewPill('Thread', 'thread-value', '', packet.threadName || '-')
         + '</div></section>'
         + validationSection(validation)
+        + dashboardSectionPlaceholder()
         + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders)
         + sectionHeaders('Response headers', packet.responseHeaders) + '</section>'
         + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request)
@@ -336,6 +337,7 @@ function renderDetail(packet) {
         + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
+    mountDashboardLinks(packet);
 }
 
 function detailMetric(label, value, suffix) {
@@ -366,6 +368,11 @@ function validationSection(validation) {
             + '</div>';
     }).join('');
     return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>' + rules + '</section>';
+}
+
+function dashboardSectionPlaceholder() {
+    return '<section class="detail-section" id="detail-dashboards"><h3>Dashboards</h3>'
+        + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
 function sectionHeaders(title, headers) {
