@@ -13,5 +13,6 @@
   <modules>
     <module>web-listview-client</module>
     <module>web-listview</module>
+    <module>loadtest</module>
   </modules>
 </project>

@@ -7,6 +7,7 @@ import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.enums.ReadyState;
 import org.java_websocket.handshake.ServerHandshake;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,7 +87,12 @@ public class WsSink implements PacketSink {
             return;
         }
         try {
-            boolean connected = client.connectBlocking(CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            // A WebSocketClient is single-use: connectBlocking() works only on a fresh instance.
+            // Once it has been opened (and possibly dropped, e.g. an oversized frame), the same
+            // instance must be revived via reconnectBlocking(), otherwise every later send is lost.
+            boolean connected = client.getReadyState() == ReadyState.NOT_YET_CONNECTED
+                    ? client.connectBlocking(CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                    : client.reconnectBlocking();
             if (!connected) {
                 LOG.warn("WS capture stream not connected to {} after {}", client.getURI(), CONNECT_TIMEOUT);
             }
