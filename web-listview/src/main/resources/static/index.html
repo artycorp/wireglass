@@ -100,73 +100,82 @@
                 </div>
                 <span id="packet-count" class="count">0 packets</span>
                 <button type="button" id="clear-btn" class="toolbar-clear danger" title="Clear captured packets">Clear</button>
-                <button type="button" id="schema-toggle" class="schema-toggle" aria-expanded="false" aria-controls="schema-panel">Schemas</button>
-                <button type="button" id="dashboard-toggle" class="schema-toggle" aria-expanded="false" aria-controls="dashboard-panel">Dashboards</button>
+                <button type="button" id="settings-toggle" class="settings-toggle" aria-expanded="false" aria-controls="settings-panel">Settings</button>
             </div>
             <div class="active-filters" id="active-filters" hidden>
                 <span class="af-label">active:</span>
                 <span id="active-tags"></span>
                 <button type="button" id="reset-filters" class="reset">Reset</button>
             </div>
-            <div class="schema-panel" id="schema-panel" hidden>
-                <label class="schema-field pattern">URL pattern
-                    <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
-                </label>
-                <label class="schema-field target">target
-                    <select id="schema-target">
-                        <option value="response">response</option>
-                        <option value="request">request</option>
-                    </select>
-                </label>
-                <label class="schema-field schema">JSON Schema
-                    <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
-                </label>
-                <div class="schema-actions">
-                    <button type="button" id="schema-save" class="primary">Save</button>
-                    <span id="schema-message" class="schema-message" role="status"></span>
+            <div class="settings-panel" id="settings-panel" hidden>
+                <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+                    <button type="button" class="settings-tab active" id="settings-tab-schema"
+                            role="tab" aria-selected="true" aria-controls="schema-panel"
+                            data-settings-tab="schema">JSON Schema <span id="schema-count">0</span></button>
+                    <button type="button" class="settings-tab" id="settings-tab-dashboards"
+                            role="tab" aria-selected="false" aria-controls="dashboard-panel"
+                            data-settings-tab="dashboards">Dashboards <span id="dashboard-count">0</span></button>
                 </div>
-                <div id="schema-list" class="schema-list"></div>
-            </div>
-            <div class="schema-panel" id="dashboard-panel" hidden>
-                <label class="schema-field">Name
-                    <input id="dash-name" type="text" placeholder="Open in Grafana"/>
-                </label>
-                <label class="schema-field">System
-                    <select id="dash-system">
-                        <option value="grafana">Grafana</option>
-                        <option value="splunk">Splunk</option>
-                        <option value="signalfx">SignalFx</option>
-                        <option value="custom">Custom</option>
-                    </select>
-                </label>
-                <label class="schema-field">Scope
-                    <select id="dash-scope">
-                        <option value="packet">packet</option>
-                        <option value="global">global</option>
-                    </select>
-                </label>
-                <label class="schema-field">Insert preset
-                    <select id="dash-preset">
-                        <option value="">—</option>
-                        <option value="grafana">Grafana</option>
-                        <option value="splunk">Splunk</option>
-                        <option value="signalfx">SignalFx</option>
-                    </select>
-                </label>
-                <label class="schema-field pattern">URL template
-                    <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
-                </label>
-                <label class="schema-field">Match (packet, optional)
-                    <input id="dash-match" type="text" placeholder="api.example.com"/>
-                </label>
-                <label class="schema-field">Window ± min
-                    <input id="dash-window" type="number" min="1" max="1440" value="5"/>
-                </label>
-                <div class="schema-actions">
-                    <button type="button" id="dash-save" class="primary">Save</button>
-                    <span id="dash-message" class="schema-message" role="status"></span>
+                <div class="schema-panel settings-pane" id="schema-panel" role="tabpanel" aria-labelledby="settings-tab-schema">
+                    <label class="schema-field pattern">URL pattern
+                        <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
+                    </label>
+                    <label class="schema-field target">target
+                        <select id="schema-target">
+                            <option value="response">response</option>
+                            <option value="request">request</option>
+                        </select>
+                    </label>
+                    <label class="schema-field schema">JSON Schema
+                        <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
+                    </label>
+                    <div class="schema-actions">
+                        <button type="button" id="schema-save" class="primary">Save</button>
+                        <span id="schema-message" class="schema-message" role="status"></span>
+                    </div>
+                    <div id="schema-list" class="schema-list"></div>
                 </div>
-                <div id="dash-list" class="schema-list"></div>
+                <div class="schema-panel settings-pane" id="dashboard-panel" role="tabpanel" aria-labelledby="settings-tab-dashboards" hidden>
+                    <label class="schema-field">Name
+                        <input id="dash-name" type="text" placeholder="Open in Grafana"/>
+                    </label>
+                    <label class="schema-field">System
+                        <select id="dash-system">
+                            <option value="grafana">Grafana</option>
+                            <option value="splunk">Splunk</option>
+                            <option value="signalfx">SignalFx</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </label>
+                    <label class="schema-field">Scope
+                        <select id="dash-scope">
+                            <option value="packet">packet</option>
+                            <option value="global">global</option>
+                        </select>
+                    </label>
+                    <label class="schema-field">Insert preset
+                        <select id="dash-preset">
+                            <option value="">—</option>
+                            <option value="grafana">Grafana</option>
+                            <option value="splunk">Splunk</option>
+                            <option value="signalfx">SignalFx</option>
+                        </select>
+                    </label>
+                    <label class="schema-field pattern">URL template
+                        <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
+                    </label>
+                    <label class="schema-field">Match (packet, optional)
+                        <input id="dash-match" type="text" placeholder="api.example.com"/>
+                    </label>
+                    <label class="schema-field">Window ± min
+                        <input id="dash-window" type="number" min="1" max="1440" value="5"/>
+                    </label>
+                    <div class="schema-actions">
+                        <button type="button" id="dash-save" class="primary">Save</button>
+                        <span id="dash-message" class="schema-message" role="status"></span>
+                    </div>
+                    <div id="dash-list" class="schema-list"></div>
+                </div>
             </div>
         </div>
         <div class="table-wrap">

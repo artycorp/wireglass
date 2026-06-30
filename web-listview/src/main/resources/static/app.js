@@ -20,6 +20,7 @@ const state = {
     detailCollapsed: false,
     schemaRules: [],
     dashboardLinks: [],
+    settingsTab: 'schema',
 };
 
 const el = {
@@ -50,7 +51,11 @@ const el = {
     activeFilters: document.getElementById('active-filters'),
     activeTags: document.getElementById('active-tags'),
     resetFilters: document.getElementById('reset-filters'),
-    schemaToggle: document.getElementById('schema-toggle'),
+    settingsToggle: document.getElementById('settings-toggle'),
+    settingsPanel: document.getElementById('settings-panel'),
+    settingsTabs: document.querySelectorAll('.settings-tab'),
+    schemaCount: document.getElementById('schema-count'),
+    dashboardCount: document.getElementById('dashboard-count'),
     schemaPanel: document.getElementById('schema-panel'),
     schemaPattern: document.getElementById('schema-pattern'),
     schemaTarget: document.getElementById('schema-target'),
@@ -58,7 +63,6 @@ const el = {
     schemaSave: document.getElementById('schema-save'),
     schemaMessage: document.getElementById('schema-message'),
     schemaList: document.getElementById('schema-list'),
-    dashboardToggle: document.getElementById('dashboard-toggle'),
     dashboardPanel: document.getElementById('dashboard-panel'),
     dashName: document.getElementById('dash-name'),
     dashSystem: document.getElementById('dash-system'),
@@ -90,6 +94,7 @@ const el = {
 };
 
 const SCHEMA_RULES_KEY = 'listview.schemaRules';
+const SETTINGS_TAB_KEY = 'listview.settingsTab';
 
 function ensureStream() {
     if (state.es) return;
@@ -645,6 +650,7 @@ function refreshDashboardViews() {
 
 function renderDashboardList() {
     if (!el.dashList) return;
+    updateSettingsCounts();
     if (!state.dashboardLinks.length) {
         el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
         return;
@@ -700,6 +706,38 @@ function mountDashboardLinks(packet) {
     links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
 }
 
+function loadSettingsTab() {
+    const stored = localStorage.getItem(SETTINGS_TAB_KEY);
+    setSettingsTab(stored === 'dashboards' ? 'dashboards' : 'schema', false);
+}
+
+function setSettingsTab(tab, persist = true) {
+    state.settingsTab = tab === 'dashboards' ? 'dashboards' : 'schema';
+    if (persist) localStorage.setItem(SETTINGS_TAB_KEY, state.settingsTab);
+    const activePanel = state.settingsTab === 'dashboards' ? el.dashboardPanel : el.schemaPanel;
+    const inactivePanel = state.settingsTab === 'dashboards' ? el.schemaPanel : el.dashboardPanel;
+    if (activePanel) activePanel.hidden = false;
+    if (inactivePanel) inactivePanel.hidden = true;
+    el.settingsTabs.forEach(tabEl => {
+        const selected = tabEl.dataset.settingsTab === state.settingsTab;
+        tabEl.classList.toggle('active', selected);
+        tabEl.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+}
+
+function focusActiveSettingsField() {
+    if (state.settingsTab === 'dashboards') {
+        el.dashName.focus();
+    } else {
+        el.schemaPattern.focus();
+    }
+}
+
+function updateSettingsCounts() {
+    if (el.schemaCount) el.schemaCount.textContent = String(state.schemaRules.length);
+    if (el.dashboardCount) el.dashboardCount.textContent = String(state.dashboardLinks.length);
+}
+
 function setStatus(text, kind) {
     el.status.textContent = text;
     el.status.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)' : kind === 'run' ? 'var(--accent)' : 'var(--muted)';
@@ -724,6 +762,7 @@ function saveSchemaRules() {
 
 function renderSchemaRules() {
     if (!el.schemaList) return;
+    updateSettingsCounts();
     if (!state.schemaRules.length) {
         el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
         return;
@@ -911,11 +950,18 @@ el.clear.addEventListener('click', async () => {
     try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
 });
 
-el.schemaToggle.addEventListener('click', () => {
-    const open = el.schemaPanel.hidden;
-    el.schemaPanel.hidden = !open;
-    el.schemaToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) el.schemaPattern.focus();
+el.settingsToggle.addEventListener('click', () => {
+    const open = el.settingsPanel.hidden;
+    el.settingsPanel.hidden = !open;
+    el.settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) focusActiveSettingsField();
+});
+
+el.settingsTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        setSettingsTab(tab.dataset.settingsTab);
+        focusActiveSettingsField();
+    });
 });
 
 el.schemaSave.addEventListener('click', () => {
@@ -953,12 +999,6 @@ el.schemaList.addEventListener('click', (ev) => {
 });
 
 // ---- dashboard links panel ----
-el.dashboardToggle.addEventListener('click', () => {
-    const open = el.dashboardPanel.hidden;
-    el.dashboardPanel.hidden = !open;
-    el.dashboardToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) el.dashName.focus();
-});
 el.dashPreset.addEventListener('change', () => {
     const tpl = DASHBOARD_PRESETS[el.dashPreset.value];
     if (tpl) { el.dashUrl.value = tpl; el.dashSystem.value = el.dashPreset.value; }
@@ -1433,6 +1473,7 @@ initBodyEditor();
 updateBodyVisibility();
 loadFilters();
 renderActiveFilters();
+loadSettingsTab();
 loadSchemaRules();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));

@@ -200,7 +200,7 @@ class TrafficInspectorE2EIT {
     void responseSchemaValidationReportsMissingAndWrongType() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
-            page.click("#schema-toggle");
+            openSettingsTab(page, "schema");
             page.fill("#schema-pattern", "/");
             page.selectOption("#schema-target", "response");
             page.fill("#schema-json", """
@@ -228,6 +228,35 @@ class TrafficInspectorE2EIT {
             assertThat(validation).containsIgnoringCase("response").contains("/");
             assertThat(validation).contains("$.id").contains("required");
             assertThat(validation).contains("$.method").contains("expected number");
+        }
+    }
+
+    @Test
+    void settingsPanelUsesTabsForSchemasAndDashboards() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            assertThat(page.querySelector("#schema-toggle")).isNull();
+            assertThat(page.querySelector("#dashboard-toggle")).isNull();
+
+            page.click("#settings-toggle");
+            page.waitForSelector("#settings-panel:not([hidden])",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#schema-panel")).isTrue();
+            assertThat(page.isVisible("#dashboard-panel")).isFalse();
+
+            page.click(".settings-tab[data-settings-tab='dashboards']");
+            assertThat(page.isVisible("#dashboard-panel")).isTrue();
+            assertThat(page.isVisible("#schema-panel")).isFalse();
+            assertThat(page.getAttribute(".settings-tab[data-settings-tab='dashboards']", "aria-selected"))
+                    .isEqualTo("true");
+
+            page.click("#settings-toggle");
+            page.waitForFunction("() => document.querySelector('#settings-panel').hidden",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            page.click("#settings-toggle");
+            assertThat(page.isVisible("#dashboard-panel")).isTrue();
         }
     }
 
@@ -548,6 +577,13 @@ class TrafficInspectorE2EIT {
         page.click("button.primary");
     }
 
+    private void openSettingsTab(Page page, String tab) {
+        if (page.querySelector("#settings-panel[hidden]") != null) {
+            page.click("#settings-toggle");
+        }
+        page.click(".settings-tab[data-settings-tab='" + tab + "']");
+    }
+
     private int waitForRowCount(Page page, int atLeast) {
         page.waitForFunction(
                 "() => document.querySelectorAll('#packet-body tr.pkt').length >= " + atLeast,
@@ -573,7 +609,7 @@ class TrafficInspectorE2EIT {
     void dashboardPanelAddsListsPersistsAndDeletesLinks() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
-            page.click("#dashboard-toggle");
+            openSettingsTab(page, "dashboards");
 
             // choosing a preset fills the URL template and system
             page.selectOption("#dash-preset", "grafana");
@@ -586,7 +622,7 @@ class TrafficInspectorE2EIT {
 
             // persists across reload (localStorage)
             page.reload();
-            page.click("#dashboard-toggle");
+            openSettingsTab(page, "dashboards");
             assertThat(page.innerText("#dash-list")).contains("Open in Grafana");
 
             // delete -> empty state
@@ -638,7 +674,7 @@ class TrafficInspectorE2EIT {
     void detailPaneShowsMatchingDashboardLinksWithSafeHref() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
-            page.click("#dashboard-toggle");
+            openSettingsTab(page, "dashboards");
 
             // matching packet link (echo host is 127.0.0.1); name carries a quote to prove escaping
             page.fill("#dash-name", "Grafana \"prod\"");
@@ -652,7 +688,7 @@ class TrafficInspectorE2EIT {
             page.fill("#dash-url", "https://other/{host}");
             page.fill("#dash-match", "no-such-host");
             page.click("#dash-save");
-            page.click("#dashboard-toggle");  // close panel
+            page.click("#settings-toggle");  // close panel
 
             startRun(page, "GET", "", null);
             waitForRowCount(page, 1);
@@ -676,7 +712,7 @@ class TrafficInspectorE2EIT {
     void globalDashboardLinkAppearsInTopBar() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
-            page.click("#dashboard-toggle");
+            openSettingsTab(page, "dashboards");
             page.fill("#dash-name", "Grafana home");
             page.selectOption("#dash-scope", "global");
             page.fill("#dash-url", "https://grafana.example/home");
