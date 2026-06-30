@@ -24,6 +24,8 @@ const state = {
 };
 
 const el = {
+    trafficView: document.getElementById('traffic-view'),
+    settingsView: document.getElementById('settings-view'),
     bodygrid: document.getElementById('bodygrid'),
     form: document.getElementById('run-form'),
     runToggle: document.getElementById('run-toggle'),
@@ -53,7 +55,9 @@ const el = {
     resetFilters: document.getElementById('reset-filters'),
     settingsToggle: document.getElementById('settings-toggle'),
     settingsPanel: document.getElementById('settings-panel'),
+    settingsBack: document.getElementById('settings-back'),
     settingsTabs: document.querySelectorAll('.settings-tab'),
+    languageOptions: document.querySelectorAll('.language-option'),
     schemaCount: document.getElementById('schema-count'),
     dashboardCount: document.getElementById('dashboard-count'),
     schemaPanel: document.getElementById('schema-panel'),
@@ -95,6 +99,7 @@ const el = {
 
 const SCHEMA_RULES_KEY = 'listview.schemaRules';
 const SETTINGS_TAB_KEY = 'listview.settingsTab';
+const LANGUAGE_KEY = 'listview.language';
 
 function ensureStream() {
     if (state.es) return;
@@ -335,8 +340,8 @@ function renderDetail(packet) {
         + '</div></section>'
         + validationSection(validation)
         + dashboardSectionPlaceholder()
-        + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders)
-        + sectionHeaders('Response headers', packet.responseHeaders) + '</section>'
+        + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
+        + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
         + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request)
         + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response) + '</section>'
         + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
@@ -380,13 +385,17 @@ function dashboardSectionPlaceholder() {
         + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
-function sectionHeaders(title, headers) {
+function sectionHeaders(title, headers, direction) {
     if (!headers || Object.keys(headers).length === 0) return '';
     let rows = '';
     for (const [k, v] of Object.entries(headers)) {
-        rows += '<tr><td class="k">' + esc(k) + '</td><td>' + esc(v) + '</td></tr>';
+        rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + esc(v) + '</td></tr>';
     }
-    return '<h3>' + title + '</h3><table class="kv">' + rows + '</table>';
+    const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
+    const label = kind === 'incoming' ? 'incoming' : 'outgoing';
+    return '<div class="headers-card ' + kind + '"><h3>' + title
+        + '<span class="headers-direction">' + label + '</span></h3>'
+        + '<table class="kv headers-table">' + rows + '</table></div>';
 }
 
 // Detail bodies: valid JSON/HTML is rendered into a read-only CodeMirror (highlight + pretty-print);
@@ -708,16 +717,15 @@ function mountDashboardLinks(packet) {
 
 function loadSettingsTab() {
     const stored = localStorage.getItem(SETTINGS_TAB_KEY);
-    setSettingsTab(stored === 'dashboards' ? 'dashboards' : 'schema', false);
+    setSettingsTab(['dashboards', 'language'].includes(stored) ? stored : 'schema', false);
 }
 
 function setSettingsTab(tab, persist = true) {
-    state.settingsTab = tab === 'dashboards' ? 'dashboards' : 'schema';
+    state.settingsTab = ['dashboards', 'language'].includes(tab) ? tab : 'schema';
     if (persist) localStorage.setItem(SETTINGS_TAB_KEY, state.settingsTab);
-    const activePanel = state.settingsTab === 'dashboards' ? el.dashboardPanel : el.schemaPanel;
-    const inactivePanel = state.settingsTab === 'dashboards' ? el.schemaPanel : el.dashboardPanel;
-    if (activePanel) activePanel.hidden = false;
-    if (inactivePanel) inactivePanel.hidden = true;
+    [el.schemaPanel, el.dashboardPanel, document.getElementById('language-panel')].forEach(panel => {
+        if (panel) panel.hidden = panel.id !== state.settingsTabPanelId;
+    });
     el.settingsTabs.forEach(tabEl => {
         const selected = tabEl.dataset.settingsTab === state.settingsTab;
         tabEl.classList.toggle('active', selected);
@@ -725,12 +733,52 @@ function setSettingsTab(tab, persist = true) {
     });
 }
 
+Object.defineProperty(state, 'settingsTabPanelId', {
+    get() {
+        if (state.settingsTab === 'dashboards') return 'dashboard-panel';
+        if (state.settingsTab === 'language') return 'language-panel';
+        return 'schema-panel';
+    }
+});
+
 function focusActiveSettingsField() {
     if (state.settingsTab === 'dashboards') {
         el.dashName.focus();
+    } else if (state.settingsTab === 'language') {
+        const active = document.querySelector('.language-option.active');
+        if (active) active.focus();
     } else {
         el.schemaPattern.focus();
     }
+}
+
+function openSettingsView() {
+    el.trafficView.hidden = true;
+    el.settingsView.hidden = false;
+    el.settingsToggle.setAttribute('aria-expanded', 'true');
+    focusActiveSettingsField();
+}
+
+function closeSettingsView() {
+    el.settingsView.hidden = true;
+    el.trafficView.hidden = false;
+    el.settingsToggle.setAttribute('aria-expanded', 'false');
+    el.settingsToggle.focus();
+}
+
+function loadLanguage() {
+    const stored = localStorage.getItem(LANGUAGE_KEY) === 'ru' ? 'ru' : 'en';
+    setLanguage(stored, false);
+}
+
+function setLanguage(language, persist = true) {
+    const selectedLanguage = language === 'ru' ? 'ru' : 'en';
+    if (persist) localStorage.setItem(LANGUAGE_KEY, selectedLanguage);
+    el.languageOptions.forEach(option => {
+        const selected = option.dataset.language === selectedLanguage;
+        option.classList.toggle('active', selected);
+        option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
 }
 
 function updateSettingsCounts() {
@@ -951,17 +999,24 @@ el.clear.addEventListener('click', async () => {
 });
 
 el.settingsToggle.addEventListener('click', () => {
-    const open = el.settingsPanel.hidden;
-    el.settingsPanel.hidden = !open;
-    el.settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open) focusActiveSettingsField();
+    if (el.settingsView.hidden) {
+        openSettingsView();
+    } else {
+        closeSettingsView();
+    }
 });
+
+el.settingsBack.addEventListener('click', closeSettingsView);
 
 el.settingsTabs.forEach(tab => {
     tab.addEventListener('click', () => {
         setSettingsTab(tab.dataset.settingsTab);
         focusActiveSettingsField();
     });
+});
+
+el.languageOptions.forEach(option => {
+    option.addEventListener('click', () => setLanguage(option.dataset.language));
 });
 
 el.schemaSave.addEventListener('click', () => {
@@ -1474,6 +1529,7 @@ updateBodyVisibility();
 loadFilters();
 renderActiveFilters();
 loadSettingsTab();
+loadLanguage();
 loadSchemaRules();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));

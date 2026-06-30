@@ -197,6 +197,49 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void longHeadersWrapAndDirectionsAreColorSeparated() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'headers-test',
+                      url: 'https://api.example.test/private',
+                      label: 'headers-test',
+                      method: 'GET',
+                      status: '200',
+                      success: true,
+                      type: 'HTTP',
+                      threadName: 'Thread Group 1-1',
+                      elapsedMs: 12,
+                      connectMs: 1,
+                      latencyMs: 8,
+                      requestHeaders: {
+                        Connection: 'keep-alive',
+                        Authorization: 'Bearer eyJzdWIiOiJsb2FkdGVzdCIsImV4cCI6MTc4MjgwMzc4N30.70f9ef54e20bccc280dce01575e634a001cf1c3abd0cf257fc0fdd03c0352393'
+                      },
+                      responseHeaders: {
+                        'Content-Type': 'application/json'
+                      },
+                      requestBody: '',
+                      responseBody: '{"ok":true}'
+                    })
+                    """);
+
+            assertThat(page.querySelector("#detail-headers .headers-card.outgoing")).isNotNull();
+            assertThat(page.querySelector("#detail-headers .headers-card.incoming")).isNotNull();
+            assertThat(page.innerText("#detail-headers")).containsIgnoringCase("outgoing")
+                    .containsIgnoringCase("incoming");
+            assertThat((Boolean) page.evaluate("""
+                    () => {
+                      const value = [...document.querySelectorAll('#detail-headers td.v')]
+                        .find(td => td.textContent.startsWith('Bearer '));
+                      return value && value.scrollWidth <= value.clientWidth + 1;
+                    }
+                    """)).isTrue();
+        }
+    }
+
+    @Test
     void responseSchemaValidationReportsMissingAndWrongType() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
@@ -215,6 +258,7 @@ class TrafficInspectorE2EIT {
                     """);
             page.click("#schema-save");
             assertThat(page.innerText("#schema-list")).containsIgnoringCase("response").contains("/");
+            page.click("#settings-back");
 
             startRun(page, "GET", "", null);
             waitForRowCount(page, 1);
@@ -244,12 +288,32 @@ class TrafficInspectorE2EIT {
             assertThat((Boolean) page.evaluate(
                     "() => document.querySelector('#run-toggle').nextElementSibling.id === 'settings-toggle'"))
                     .isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#settings-toggle').classList.contains('run-toggle')"))
+                    .isTrue();
+            assertThat((Boolean) page.evaluate("""
+                    () => {
+                      const run = document.querySelector('#run-toggle').getBoundingClientRect();
+                      const settings = document.querySelector('#settings-toggle').getBoundingClientRect();
+                      return Math.abs(run.height - settings.height) <= 1;
+                    }
+                    """)).isTrue();
+            assertThat((Boolean) page.evaluate("""
+                    () => {
+                      const run = document.querySelector('#run-toggle').getBoundingClientRect();
+                      const settings = document.querySelector('#settings-toggle').getBoundingClientRect();
+                      return Math.abs(run.width - settings.width) <= 1;
+                    }
+                    """)).isTrue();
 
             page.click("#settings-toggle");
-            page.waitForSelector("#settings-panel:not([hidden])",
+            page.waitForSelector("#settings-view:not([hidden])",
                     new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#traffic-view")).isFalse();
+            assertThat(page.isVisible("#settings-panel")).isTrue();
             assertThat(page.isVisible("#schema-panel")).isTrue();
             assertThat(page.isVisible("#dashboard-panel")).isFalse();
+            assertThat(page.isVisible("#language-panel")).isFalse();
 
             page.click(".settings-tab[data-settings-tab='dashboards']");
             assertThat(page.isVisible("#dashboard-panel")).isTrue();
@@ -257,12 +321,20 @@ class TrafficInspectorE2EIT {
             assertThat(page.getAttribute(".settings-tab[data-settings-tab='dashboards']", "aria-selected"))
                     .isEqualTo("true");
 
-            page.click("#settings-toggle");
-            page.waitForFunction("() => document.querySelector('#settings-panel').hidden",
+            page.click(".settings-tab[data-settings-tab='language']");
+            assertThat(page.isVisible("#language-panel")).isTrue();
+            assertThat(page.innerText("#language-panel")).contains("English").contains("Русский");
+
+            page.click("#settings-back");
+            page.waitForFunction("() => document.querySelector('#settings-view').hidden",
                     null,
                     new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#traffic-view")).isTrue();
+
             page.click("#settings-toggle");
-            assertThat(page.isVisible("#dashboard-panel")).isTrue();
+            page.waitForSelector("#settings-view:not([hidden])",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.isVisible("#language-panel")).isTrue();
         }
     }
 
@@ -584,7 +656,7 @@ class TrafficInspectorE2EIT {
     }
 
     private void openSettingsTab(Page page, String tab) {
-        if (page.querySelector("#settings-panel[hidden]") != null) {
+        if (page.querySelector("#settings-view[hidden]") != null) {
             page.click("#settings-toggle");
         }
         page.click(".settings-tab[data-settings-tab='" + tab + "']");
