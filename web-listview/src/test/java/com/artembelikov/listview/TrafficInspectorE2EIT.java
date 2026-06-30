@@ -662,4 +662,22 @@ class TrafficInspectorE2EIT {
             assertThat(a.getAttribute("target")).isEqualTo("_blank");
         }
     }
+
+    @Test
+    void globalDashboardLinkAppearsInTopBar() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#dashboard-toggle");
+            page.fill("#dash-name", "Grafana home");
+            page.selectOption("#dash-scope", "global");
+            page.fill("#dash-url", "https://grafana.example/home");
+            page.click("#dash-save");
+
+            page.waitForSelector("#global-links a",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            com.microsoft.playwright.ElementHandle a = page.querySelector("#global-links a");
+            assertThat(a.innerText()).contains("Grafana home");
+            assertThat(a.getAttribute("href")).isEqualTo("https://grafana.example/home");
+        }
+    }
 }
