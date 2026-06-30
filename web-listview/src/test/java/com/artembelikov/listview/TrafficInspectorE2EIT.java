@@ -232,6 +232,29 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void clearButtonIsOnMainToolbarAndRequiresConfirmation() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+
+            assertThat(page.isVisible("#clear-btn")).isTrue();
+
+            page.onceDialog(dialog -> dialog.dismiss());
+            page.click("#clear-btn");
+            assertThat(rowCount(page)).isGreaterThan(0);
+
+            page.onceDialog(dialog -> dialog.accept());
+            page.click("#clear-btn");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#packet-body tr.pkt').length === 0",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.innerText("#packet-count")).contains("0 packets");
+        }
+    }
+
+    @Test
     void filterHidesNonMatchingPackets() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

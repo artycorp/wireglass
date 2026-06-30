@@ -711,6 +711,7 @@ el.stop.addEventListener('click', async () => {
 });
 
 el.clear.addEventListener('click', async () => {
+    if (!window.confirm('Clear all captured packets?')) return;
     state.packets = [];
     state.seen = new Set();
     state.selectedId = null;

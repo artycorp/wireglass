@@ -213,6 +213,11 @@ button:disabled { opacity: .45; cursor: default; }
 .search-wrap #filter-text { flex: 1; min-width: 140px; font-family: var(--font-mono); }
 .pane-toolbar .count { margin-left: auto; color: var(--muted); white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
 .pane-toolbar .chk { color: var(--muted); display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.toolbar-clear {
+    padding: 5px 10px;
+    background: rgba(248,81,73,.08);
+    border-color: rgba(248,81,73,.26);
+}
 .schema-toggle {
     padding: 5px 10px;
     color: var(--accent);

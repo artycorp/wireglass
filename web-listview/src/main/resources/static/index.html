@@ -53,7 +53,6 @@
             <button type="submit" class="primary">Run</button>
             <button type="button" id="demo-btn">Demo</button>
             <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
-            <button type="button" id="clear-btn" title="Clear captured packets">Clear</button>
         </div>
     </form>
 </section>
@@ -99,6 +98,7 @@
                     </label>
                 </div>
                 <span id="packet-count" class="count">0 packets</span>
+                <button type="button" id="clear-btn" class="toolbar-clear danger" title="Clear captured packets">Clear</button>
                 <button type="button" id="schema-toggle" class="schema-toggle" aria-expanded="false" aria-controls="schema-panel">Schemas</button>
             </div>
             <div class="active-filters" id="active-filters" hidden>
