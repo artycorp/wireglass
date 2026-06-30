@@ -566,6 +566,10 @@ function dashboardVars(packet) {
         fromMs, toMs, from: fromMs, to: toMs,
         fromSec: Math.floor(fromMs / 1000), toSec: Math.floor(toMs / 1000),
         fromIso: new Date(fromMs).toISOString(), toIso: new Date(toMs).toISOString(),
+        // packet-scope placeholders resolve to empty strings when there is no packet (global links)
+        url: '', host: '', port: '', scheme: '', path: '', query: '',
+        method: '', status: '', label: '', type: '', thread: '',
+        timestamp: '', epochMs: '', epochSec: '',
     };
     if (packet) {
         const u = dashboardUrlParts(packet.url || '');

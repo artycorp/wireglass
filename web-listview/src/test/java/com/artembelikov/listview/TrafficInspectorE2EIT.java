@@ -622,6 +622,15 @@ class TrafficInspectorE2EIT {
                     "() => matchesLinkUrl('https://h/orders/42','users')")).isFalse();
             assertThat((Boolean) page.evaluate(
                     "() => matchesLinkUrl('https://h/orders/42','(')")).isFalse();
+
+            // global (no packet): packet placeholders resolve to empty, not left literal
+            String globalHref = (String) page.evaluate(
+                    "() => buildDashboardUrl('https://x/{host}?from={fromMs}', null)");
+            assertThat(globalHref).doesNotContain("%7B").startsWith("https://x/?from=");
+
+            // invalid regex falls back to substring (positive branch)
+            assertThat((Boolean) page.evaluate(
+                    "() => matchesLinkUrl('https://h/a(b','a(')")).isTrue();
         }
     }
 
@@ -678,6 +687,8 @@ class TrafficInspectorE2EIT {
             com.microsoft.playwright.ElementHandle a = page.querySelector("#global-links a");
             assertThat(a.innerText()).contains("Grafana home");
             assertThat(a.getAttribute("href")).isEqualTo("https://grafana.example/home");
+            assertThat(a.getAttribute("rel")).contains("noopener");
+            assertThat(a.getAttribute("target")).isEqualTo("_blank");
         }
     }
 }
