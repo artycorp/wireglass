@@ -238,6 +238,12 @@ class TrafficInspectorE2EIT {
 
             assertThat(page.querySelector("#schema-toggle")).isNull();
             assertThat(page.querySelector("#dashboard-toggle")).isNull();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#settings-toggle').parentElement.classList.contains('topbar')"))
+                    .isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#run-toggle').nextElementSibling.id === 'settings-toggle'"))
+                    .isTrue();
 
             page.click("#settings-toggle");
             page.waitForSelector("#settings-panel:not([hidden])",
