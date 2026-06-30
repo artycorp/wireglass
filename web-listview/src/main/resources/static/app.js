@@ -19,6 +19,7 @@ const state = {
     sort: { key: null, dir: 'asc' },  // null key = insertion order
     detailCollapsed: false,
     schemaRules: [],
+    dashboardLinks: [],
 };
 
 const el = {
@@ -510,6 +511,77 @@ function respTitle(p) {
 function esc(s) {
     if (s == null) return '';
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---- dashboard links ----
+const DASHBOARD_LINKS_KEY = 'listview.dashboardLinks';
+const DASHBOARD_WINDOW_KEY = 'listview.dashboardWindowMs';
+const DEFAULT_DASHBOARD_WINDOW_MS = 300000;  // ±5 min
+const DASHBOARD_PRESETS = {
+    grafana: 'https://GRAFANA/d/UID?var-host={host}&from={fromMs}&to={toMs}',
+    splunk: 'https://SPLUNK/app/search/search?q=search%20host%3D{host}&earliest={fromSec}&latest={toSec}',
+    signalfx: 'https://app.signalfx.com/#/dashboard/ID?startTime={fromIso}&endTime={toIso}',
+};
+
+function dashboardWindowMs() {
+    const stored = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
+    return stored > 0 ? stored : DEFAULT_DASHBOARD_WINDOW_MS;
+}
+
+function dashboardUrlParts(url) {
+    try {
+        const u = new URL(url);
+        return { host: u.hostname, port: u.port, scheme: u.protocol.replace(/:$/, ''),
+            path: u.pathname, query: u.search.replace(/^\?/, '') };
+    } catch (e) {
+        return { host: '', port: '', scheme: '', path: '', query: '' };
+    }
+}
+
+function dashboardVars(packet) {
+    const win = dashboardWindowMs();
+    const center = (packet && packet.timestamp ? Date.parse(packet.timestamp) : Date.now()) || Date.now();
+    const fromMs = center - win, toMs = center + win;
+    const vars = {
+        fromMs, toMs, from: fromMs, to: toMs,
+        fromSec: Math.floor(fromMs / 1000), toSec: Math.floor(toMs / 1000),
+        fromIso: new Date(fromMs).toISOString(), toIso: new Date(toMs).toISOString(),
+    };
+    if (packet) {
+        const u = dashboardUrlParts(packet.url || '');
+        Object.assign(vars, {
+            url: packet.url || '', host: u.host, port: u.port, scheme: u.scheme,
+            path: u.path, query: u.query,
+            method: packet.method || '', status: packet.status || '',
+            label: packet.label || '', type: packet.type || '', thread: packet.threadName || '',
+            timestamp: packet.timestamp || '', epochMs: center, epochSec: Math.floor(center / 1000),
+        });
+    }
+    return vars;
+}
+
+function applyTemplate(template, vars) {
+    return String(template || '').replace(/\{(\w+)}/g, (m, name) =>
+        Object.prototype.hasOwnProperty.call(vars, name) ? encodeURIComponent(vars[name]) : m);
+}
+
+function buildDashboardUrl(template, packet) {
+    return applyTemplate(template, dashboardVars(packet));
+}
+
+function safeDashboardHref(url) {
+    try {
+        const u = new URL(url, window.location.origin);
+        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function matchesLinkUrl(url, match) {
+    if (!match) return true;
+    try { return new RegExp(match).test(url); }
+    catch (e) { return String(url).includes(match); }
 }
 
 function setStatus(text, kind) {

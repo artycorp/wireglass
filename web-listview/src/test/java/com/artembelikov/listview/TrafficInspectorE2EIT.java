@@ -568,4 +568,31 @@ class TrafficInspectorE2EIT {
     private String echoUrl(String path) {
         return "http://127.0.0.1:" + echoPort + path;
     }
+
+    @Test
+    void dashboardUrlTemplateSubstitutesEncodesAndValidatesScheme() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            String href = (String) page.evaluate(
+                "() => buildDashboardUrl("
+                + "'https://g/d/UID?h={host}&p={path}&from={fromMs}&to={toMs}&q={label}', "
+                + "{ url:'https://api.example.com:8443/orders/42?x=1', label:'a\"b', "
+                + "timestamp:'2026-06-30T10:00:00.000Z' })");
+            assertThat(href).contains("h=api.example.com")
+                    .contains("p=%2Forders%2F42")
+                    .contains("q=a%22b");
+            assertThat(href).matches(".*from=\\d+&to=\\d+.*");
+
+            assertThat(page.evaluate("() => safeDashboardHref('javascript:alert(1)')")).isNull();
+            assertThat(page.evaluate("() => safeDashboardHref('https://x/y')")).isEqualTo("https://x/y");
+
+            assertThat((Boolean) page.evaluate(
+                    "() => matchesLinkUrl('https://h/orders/42','orders')")).isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => matchesLinkUrl('https://h/orders/42','users')")).isFalse();
+            assertThat((Boolean) page.evaluate(
+                    "() => matchesLinkUrl('https://h/orders/42','(')")).isFalse();
+        }
+    }
 }
