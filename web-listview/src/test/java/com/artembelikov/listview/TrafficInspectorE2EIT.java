@@ -197,6 +197,41 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void responseSchemaValidationReportsMissingAndWrongType() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#schema-toggle");
+            page.fill("#schema-pattern", "/");
+            page.selectOption("#schema-target", "response");
+            page.fill("#schema-json", """
+                    {
+                      "type": "object",
+                      "required": ["id", "method"],
+                      "properties": {
+                        "id": { "type": "number" },
+                        "method": { "type": "number" }
+                      }
+                    }
+                    """);
+            page.click("#schema-save");
+            assertThat(page.innerText("#schema-list")).containsIgnoringCase("response").contains("/");
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-validation .validation-rule.invalid",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            String validation = page.innerText("#detail-validation");
+            assertThat(validation).containsIgnoringCase("Validation");
+            assertThat(validation).containsIgnoringCase("response").contains("/");
+            assertThat(validation).contains("$.id").contains("required");
+            assertThat(validation).contains("$.method").contains("expected number");
+        }
+    }
+
+    @Test
     void filterHidesNonMatchingPackets() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

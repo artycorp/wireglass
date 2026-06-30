@@ -4,6 +4,7 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>jmeter-web-listview — traffic inspector</title>
+    <link rel="stylesheet" href="vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css"/>
     <link rel="stylesheet" href="style.css"/>
 </head>
@@ -57,7 +58,7 @@
     </form>
 </section>
 
-<section class="bodygrid">
+<section class="bodygrid" id="bodygrid">
     <div class="pane listpane">
         <div class="pane-toolbar">
             <div class="facets">
@@ -98,11 +99,31 @@
                     </label>
                 </div>
                 <span id="packet-count" class="count">0 packets</span>
+                <button type="button" id="schema-toggle" class="schema-toggle" aria-expanded="false" aria-controls="schema-panel">Schemas</button>
             </div>
             <div class="active-filters" id="active-filters" hidden>
                 <span class="af-label">active:</span>
                 <span id="active-tags"></span>
                 <button type="button" id="reset-filters" class="reset">Reset</button>
+            </div>
+            <div class="schema-panel" id="schema-panel" hidden>
+                <label class="schema-field pattern">URL pattern
+                    <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
+                </label>
+                <label class="schema-field target">target
+                    <select id="schema-target">
+                        <option value="response">response</option>
+                        <option value="request">request</option>
+                    </select>
+                </label>
+                <label class="schema-field schema">JSON Schema
+                    <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
+                </label>
+                <div class="schema-actions">
+                    <button type="button" id="schema-save" class="primary">Save</button>
+                    <span id="schema-message" class="schema-message" role="status"></span>
+                </div>
+                <div id="schema-list" class="schema-list"></div>
             </div>
         </div>
         <div class="table-wrap">
@@ -130,6 +151,9 @@
             <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
         </div>
     </aside>
+    <button type="button" id="detail-restore" class="detail-restore" title="Show inspector" aria-label="Show inspector" hidden>
+        <span aria-hidden="true">‹</span>
+    </button>
 </section>
 
 <template id="row-template">

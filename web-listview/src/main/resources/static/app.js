@@ -17,9 +17,12 @@ const state = {
     es: null,             // EventSource
     maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
     sort: { key: null, dir: 'asc' },  // null key = insertion order
+    detailCollapsed: false,
+    schemaRules: [],
 };
 
 const el = {
+    bodygrid: document.getElementById('bodygrid'),
     form: document.getElementById('run-form'),
     runToggle: document.getElementById('run-toggle'),
     runPanel: document.getElementById('run-panel'),
@@ -46,9 +49,18 @@ const el = {
     activeFilters: document.getElementById('active-filters'),
     activeTags: document.getElementById('active-tags'),
     resetFilters: document.getElementById('reset-filters'),
+    schemaToggle: document.getElementById('schema-toggle'),
+    schemaPanel: document.getElementById('schema-panel'),
+    schemaPattern: document.getElementById('schema-pattern'),
+    schemaTarget: document.getElementById('schema-target'),
+    schemaJson: document.getElementById('schema-json'),
+    schemaSave: document.getElementById('schema-save'),
+    schemaMessage: document.getElementById('schema-message'),
+    schemaList: document.getElementById('schema-list'),
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
     detailClose: document.getElementById('detail-close'),
+    detailRestore: document.getElementById('detail-restore'),
     bodyModal: document.getElementById('body-modal'),
     bmTitle: document.getElementById('bm-title'),
     bmSize: document.getElementById('bm-size'),
@@ -62,6 +74,8 @@ const el = {
     bmHost: document.getElementById('bm-host'),
     rowTpl: document.getElementById('row-template'),
 };
+
+const SCHEMA_RULES_KEY = 'listview.schemaRules';
 
 function ensureStream() {
     if (state.es) return;
@@ -148,14 +162,15 @@ function appendRow(packet) {
     row.querySelector('.c-idx').textContent = idx;
     row.querySelector('.c-time').textContent = formatTime(packet.timestamp);
     const typeCell = row.querySelector('.c-type');
-    typeCell.textContent = packet.type;
-    typeCell.classList.add(packet.type.toLowerCase());
+    typeCell.innerHTML = '<span class="type-pill">' + esc(packet.type) + '</span>';
+    typeCell.classList.add(typeClass(packet.type));
     const methodCell = row.querySelector('.c-method');
-    methodCell.textContent = packet.method;
-    if (packet.method) methodCell.classList.add('m-' + packet.method.toLowerCase());
+    methodCell.innerHTML = '<span class="method-pill">' + esc(packet.method) + '</span>';
+    const methodCls = methodClass(packet.method);
+    if (methodCls) methodCell.classList.add(methodCls);
     row.querySelector('.c-url').textContent = packet.url || packet.label;
     const statusCell = row.querySelector('.c-status');
-    statusCell.textContent = packet.status || (packet.success ? 'OK' : 'ERR');
+    statusCell.innerHTML = '<span class="status-pill">' + esc(packet.status || (packet.success ? 'OK' : 'ERR')) + '</span>';
     const cls = statusClass(packet.status);
     if (cls) statusCell.classList.add(cls);
     const latencyCell = row.querySelector('.c-latency');
@@ -172,6 +187,22 @@ function appendRow(packet) {
 function statusClass(status) {
     if (!status || status < 100) return '';
     return 's' + Math.floor(status / 100);
+}
+
+// packet.method / packet.type are attacker-controllable (any client can POST a CapturedPacket to
+// /api/ingest), so reduce them to a safe CSS-token allowlist before they reach a class attribute or
+// classList.add — otherwise a crafted value breaks out of class="..." (XSS) or throws on a space.
+function cssToken(s) {
+    return String(s).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
+
+function methodClass(method) {
+    return method ? 'm-' + cssToken(method) : '';
+}
+
+function typeClass(type) {
+    if (type === 'WEBSOCKET') return 'ws';
+    return type ? cssToken(type) : '';
 }
 
 // Inline timing waterfall: connect | wait (to first byte) | processing.
@@ -224,6 +255,7 @@ function formatTime(iso) {
 }
 
 function selectPacket(id, row) {
+    restoreDetail();
     state.selectedId = id;
     document.querySelectorAll('tr.pkt.selected').forEach(r => r.classList.remove('selected'));
     if (row) row.classList.add('selected');
@@ -232,29 +264,94 @@ function selectPacket(id, row) {
 }
 
 function closeDetail() {
+    collapseDetail();
     el.detailPane.classList.remove('open');
+}
+
+function collapseDetail() {
+    state.detailCollapsed = true;
+    el.bodygrid.classList.add('detail-collapsed');
+    el.detailRestore.hidden = false;
+}
+
+function restoreDetail() {
+    state.detailCollapsed = false;
+    el.bodygrid.classList.remove('detail-collapsed');
+    el.detailRestore.hidden = true;
 }
 
 function renderDetail(packet) {
     detailBodies = [];
-    if (!packet) { el.detail.innerHTML = '<div class="empty">Select a packet to inspect request &amp; response bodies.</div>'; return; }
+    if (!packet) { el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
+    const validation = validatePacket(packet);
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
         : '<span class="badge err">' + esc(packet.status || 'ERR') + '</span>';
+    const title = esc(packet.url || packet.label);
     el.detail.innerHTML =
         '<div class="detail">'
-        + '<h2>' + esc(packet.method) + ' ' + esc(packet.url || packet.label) + '</h2>'
-        + '<div class="meta">' + statusBadge + ' &middot; ' + packet.elapsedMs + ' ms (connect ' + packet.connectMs
-          + ' / latency ' + packet.latencyMs + ') &middot; ' + esc(packet.threadName)
-          + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">body truncated</span>' : '')
-          + '</div>'
-        + sectionHeaders('Request headers', packet.requestHeaders)
-        + bodyBlock(reqTitle(packet), packet.requestBody, false, false)
-        + sectionHeaders('Response headers', packet.responseHeaders)
-        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated)
-        + (packet.failureMessage ? '<h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre>' : '')
+        + '<div class="detail-hero">'
+        + '<div class="detail-kicker"><span class="method-chip">' + esc(packet.method) + '</span>' + statusBadge + '<span>' + esc(packet.type) + '</span></div>'
+        + '<h2>' + title + '</h2>'
+        + '<div class="meta">' + esc(packet.threadName) + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">body truncated</span>' : '') + '</div>'
+        + '</div>'
+        + '<div class="detail-metrics">'
+        + detailMetric('elapsed', packet.elapsedMs, 'ms')
+        + detailMetric('connect', packet.connectMs, 'ms')
+        + detailMetric('latency', packet.latencyMs, 'ms')
+        + detailMetric('response', packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
+        + '</div>'
+        + '<div class="detail-tabs" role="navigation" aria-label="Packet sections">'
+        + '<button type="button" class="detail-tab active" data-jump="overview">Overview</button>'
+        + '<button type="button" class="detail-tab" data-jump="headers">Headers</button>'
+        + '<button type="button" class="detail-tab" data-jump="bodies">Bodies</button>'
+        + '<button type="button" class="detail-tab" data-jump="raw">Raw</button>'
+        + '</div>'
+        + '<section class="detail-section" id="detail-overview"><h3>Overview</h3>'
+        + '<div class="overview-grid">'
+        + overviewPill('Method', 'c-method ' + methodClass(packet.method), 'method-pill', packet.method)
+        + overviewPill('Status', 'c-status ' + statusClass(packet.status), 'status-pill', packet.status || (packet.success ? 'OK' : 'ERR'))
+        + overviewPill('Type', 'c-type ' + typeClass(packet.type), 'type-pill', packet.type)
+        + overviewPill('Thread', 'thread-value', '', packet.threadName || '-')
+        + '</div></section>'
+        + validationSection(validation)
+        + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders)
+        + sectionHeaders('Response headers', packet.responseHeaders) + '</section>'
+        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request)
+        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response) + '</section>'
+        + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
+}
+
+function detailMetric(label, value, suffix) {
+    return '<div class="metric"><span>' + label + '</span><strong>' + esc(value == null ? '-' : value) + '</strong><em>' + suffix + '</em></div>';
+}
+
+function overviewPill(label, valueClass, pillClass, value) {
+    const content = pillClass
+        ? '<span class="' + pillClass + '">' + esc(value) + '</span>'
+        : esc(value);
+    return '<div><span>' + esc(label) + '</span><strong class="' + esc(valueClass.trim()) + '">' + content + '</strong></div>';
+}
+
+function validationSection(validation) {
+    if (!validation.results.length) {
+        return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>'
+            + '<div class="validation-empty">No matching schema rules.</div></section>';
+    }
+    const rules = validation.results.map(result => {
+        const errors = result.errors.length
+            ? '<ul>' + result.errors.map(e => '<li><code>' + esc(e.path) + '</code> ' + esc(e.message) + '</li>').join('') + '</ul>'
+            : '<div class="validation-ok">Body matches schema.</div>';
+        return '<div class="validation-rule ' + (result.errors.length ? 'invalid' : 'valid') + '">'
+            + '<div class="validation-head"><span class="validation-target">' + esc(result.target) + '</span>'
+            + '<code>' + esc(result.pattern) + '</code>'
+            + '<strong>' + (result.errors.length ? 'invalid' : 'valid') + '</strong></div>'
+            + errors
+            + '</div>';
+    }).join('');
+    return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>' + rules + '</section>';
 }
 
 function sectionHeaders(title, headers) {
@@ -271,7 +368,7 @@ function sectionHeaders(title, headers) {
 let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered body block
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
-function bodyBlock(title, body, binary, truncated) {
+function bodyBlock(title, body, binary, truncated, target, validationErrors) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? ' (truncated)' : '');
@@ -283,7 +380,7 @@ function bodyBlock(title, body, binary, truncated) {
     } else {
         note += ' (binary — hex preview)';
     }
-    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false }) - 1;
+    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [] }) - 1;
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
     const toggle = mode ? viewToggleHtml(i) : '';
     const expand = ' <button type="button" class="body-expand" data-body="' + i
@@ -341,9 +438,50 @@ function fillViewer(container, b, raw, where) {
         lineWrapping: true,
         viewportMargin: (where === 'modal' || big) ? 10 : Infinity,
     });
+    applyValidationMarks(cm, b);
     if (where === 'detail' && big) cm.setSize(null, DETAIL_VIEWER_MAX);
     requestAnimationFrame(() => cm.refresh());  // drawer/modal animates in; size after layout
     return cm;
+}
+
+function applyValidationMarks(cm, b) {
+    if (!b.validationErrors || !b.validationErrors.length || b.mode !== 'application/json') return;
+    const marked = new Set();
+    for (const error of b.validationErrors) {
+        if (marked.has(error.path)) continue;
+        const pos = findJsonPathPosition(b.code, error.path);
+        if (!pos) continue;
+        marked.add(error.path);
+        cm.markText(pos.from, pos.to, { className: 'cm-schema-error', title: error.message });
+    }
+}
+
+function findJsonPathPosition(code, path) {
+    const parts = jsonPathParts(path);
+    if (!parts.length) return null;
+    const leaf = parts[parts.length - 1];
+    if (typeof leaf !== 'string') return null;
+    const needle = '"' + leaf.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    const idx = code.indexOf(needle);
+    if (idx < 0) return null;
+    const before = code.slice(0, idx);
+    const line = (before.match(/\n/g) || []).length;
+    const lineStart = before.lastIndexOf('\n') + 1;
+    return {
+        from: CodeMirror.Pos(line, idx - lineStart),
+        to: CodeMirror.Pos(line, idx - lineStart + needle.length),
+    };
+}
+
+function jsonPathParts(path) {
+    if (!path || path === '$') return [];
+    const parts = [];
+    const re = /\.([A-Za-z_$][\w$-]*)|\[(\d+)]/g;
+    let m;
+    while ((m = re.exec(path)) !== null) {
+        parts.push(m[1] != null ? m[1] : Number(m[2]));
+    }
+    return parts;
 }
 
 function renderDetailView(i) {
@@ -377,6 +515,170 @@ function esc(s) {
 function setStatus(text, kind) {
     el.status.textContent = text;
     el.status.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)' : kind === 'run' ? 'var(--accent)' : 'var(--muted)';
+}
+
+function loadSchemaRules(render = true) {
+    try {
+        const raw = localStorage.getItem(SCHEMA_RULES_KEY);
+        const rules = raw ? JSON.parse(raw) : [];
+        state.schemaRules = Array.isArray(rules) ? rules.filter(r => r && r.pattern && r.target && r.schema) : [];
+    } catch (e) {
+        state.schemaRules = [];
+    }
+    if (render) renderSchemaRules();
+}
+
+function saveSchemaRules() {
+    localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.schemaRules));
+    renderSchemaRules();
+    rerenderSelectedDetail();
+}
+
+function renderSchemaRules() {
+    if (!el.schemaList) return;
+    if (!state.schemaRules.length) {
+        el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
+        return;
+    }
+    el.schemaList.innerHTML = state.schemaRules.map(rule =>
+        '<div class="schema-rule" data-id="' + esc(rule.id) + '">'
+        + '<span class="validation-target">' + esc(rule.target) + '</span>'
+        + '<code>' + esc(rule.pattern) + '</code>'
+        + '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>'
+        + '</div>').join('');
+}
+
+function setSchemaMessage(text, ok) {
+    el.schemaMessage.textContent = text;
+    el.schemaMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function rerenderSelectedDetail() {
+    if (state.selectedId == null) return;
+    renderDetail(state.packets.find(p => p.id === state.selectedId));
+}
+
+function validatePacket(packet) {
+    loadSchemaRules(false);
+    const results = [];
+    const paths = { request: [], response: [] };
+    for (const rule of state.schemaRules) {
+        if (!matchesUrlPattern(packet.url || packet.label || '', rule.pattern)) continue;
+        const target = rule.target === 'request' ? 'request' : 'response';
+        const body = target === 'request' ? packet.requestBody : packet.responseBody;
+        const errors = validateBodyAgainstSchema(body, rule.schema);
+        results.push({ target, pattern: rule.pattern, errors });
+        paths[target].push(...errors.filter(e => e.path).map(e => ({ path: e.path, message: e.message })));
+    }
+    return { results, paths };
+}
+
+function validateBodyAgainstSchema(body, schema) {
+    if (body == null || body === '') return [{ path: '$', message: 'body is empty' }];
+    let value;
+    try {
+        value = JSON.parse(body);
+    } catch (e) {
+        return [{ path: '$', message: 'body is not valid JSON: ' + e.message }];
+    }
+    return validateValue(value, schema, '$');
+}
+
+function validateValue(value, schema, path) {
+    if (!schema || typeof schema !== 'object') return [];
+    const errors = [];
+    if (schema.type && !schemaTypeMatches(value, schema.type)) {
+        errors.push({ path, message: 'expected ' + schema.type + ', got ' + valueType(value) });
+        return errors;
+    }
+    if (Array.isArray(schema.enum) && !schema.enum.some(v => JSON.stringify(v) === JSON.stringify(value))) {
+        errors.push({ path, message: 'expected one of ' + schema.enum.map(v => JSON.stringify(v)).join(', ') });
+    }
+    if (typeof value === 'string') {
+        if (schema.minLength != null && value.length < schema.minLength) errors.push({ path, message: 'minLength ' + schema.minLength + ' not met' });
+        if (schema.maxLength != null && value.length > schema.maxLength) errors.push({ path, message: 'maxLength ' + schema.maxLength + ' exceeded' });
+    }
+    if (typeof value === 'number') {
+        if (schema.minimum != null && value < schema.minimum) errors.push({ path, message: 'minimum ' + schema.minimum + ' not met' });
+        if (schema.maximum != null && value > schema.maximum) errors.push({ path, message: 'maximum ' + schema.maximum + ' exceeded' });
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const props = schema.properties || {};
+        if (Array.isArray(schema.required)) {
+            for (const key of schema.required) {
+                if (!Object.prototype.hasOwnProperty.call(value, key)) {
+                    errors.push({ path: path + '.' + key, message: 'required field is missing' });
+                }
+            }
+        }
+        for (const [key, childSchema] of Object.entries(props)) {
+            if (Object.prototype.hasOwnProperty.call(value, key)) {
+                errors.push(...validateValue(value[key], childSchema, path + '.' + key));
+            }
+        }
+        if (schema.additionalProperties === false) {
+            for (const key of Object.keys(value)) {
+                if (!Object.prototype.hasOwnProperty.call(props, key)) {
+                    errors.push({ path: path + '.' + key, message: 'additional property is not allowed' });
+                }
+            }
+        }
+    }
+    if (Array.isArray(value) && schema.items) {
+        value.forEach((item, i) => errors.push(...validateValue(item, schema.items, path + '[' + i + ']')));
+    }
+    return errors;
+}
+
+function schemaTypeMatches(value, type) {
+    const types = Array.isArray(type) ? type : [type];
+    return types.some(t => valueType(value) === t || (t === 'number' && valueType(value) === 'integer'));
+}
+
+function valueType(value) {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    if (Number.isInteger(value)) return 'integer';
+    return typeof value;
+}
+
+function matchesUrlPattern(url, pattern) {
+    const target = parseUrlParts(url);
+    const wanted = parsePatternParts(pattern);
+    if (!wanted.path) return false;
+    const targetSegments = splitPath(target.path);
+    const patternSegments = splitPath(wanted.path);
+    if (targetSegments.length !== patternSegments.length) return false;
+    for (let i = 0; i < patternSegments.length; i++) {
+        const part = patternSegments[i];
+        if (part === '*') continue;
+        if (/^\{[^}]+}$/.test(part)) continue;
+        if (decodeURIComponent(targetSegments[i]) !== decodeURIComponent(part)) return false;
+    }
+    for (const [key, value] of wanted.query.entries()) {
+        if (!target.query.has(key)) return false;
+        if (value !== '*' && target.query.get(key) !== value) return false;
+    }
+    return true;
+}
+
+function parseUrlParts(url) {
+    try {
+        const parsed = new URL(url, window.location.origin);
+        return { path: parsed.pathname || '/', query: parsed.searchParams };
+    } catch (e) {
+        return parsePatternParts(url);
+    }
+}
+
+function parsePatternParts(pattern) {
+    const [path, query = ''] = String(pattern || '').split('?');
+    return { path: path || '/', query: new URLSearchParams(query) };
+}
+
+function splitPath(path) {
+    const clean = String(path || '/').replace(/^\/+|\/+$/g, '');
+    return clean ? clean.split('/') : [];
 }
 
 // ---- run form ----
@@ -420,8 +722,53 @@ el.clear.addEventListener('click', async () => {
     try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
 });
 
+el.schemaToggle.addEventListener('click', () => {
+    const open = el.schemaPanel.hidden;
+    el.schemaPanel.hidden = !open;
+    el.schemaToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) el.schemaPattern.focus();
+});
+
+el.schemaSave.addEventListener('click', () => {
+    const pattern = el.schemaPattern.value.trim();
+    if (!pattern) { setSchemaMessage('URL pattern is required', false); return; }
+    let schema;
+    try {
+        schema = JSON.parse(el.schemaJson.value);
+    } catch (e) {
+        setSchemaMessage('Schema JSON: ' + e.message, false);
+        return;
+    }
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+        setSchemaMessage('Schema must be a JSON object', false);
+        return;
+    }
+    state.schemaRules.push({
+        id: String(Date.now()) + '-' + Math.random().toString(16).slice(2),
+        pattern,
+        target: el.schemaTarget.value === 'request' ? 'request' : 'response',
+        schema,
+    });
+    el.schemaPattern.value = '';
+    el.schemaJson.value = '';
+    setSchemaMessage('Saved', true);
+    saveSchemaRules();
+});
+
+el.schemaList.addEventListener('click', (ev) => {
+    const bt = ev.target.closest('.schema-delete');
+    if (!bt) return;
+    state.schemaRules = state.schemaRules.filter(rule => rule.id !== bt.dataset.id);
+    setSchemaMessage('Deleted', true);
+    saveSchemaRules();
+});
+
 // ---- detail drawer + keyboard navigation ----
 el.detailClose.addEventListener('click', closeDetail);
+el.detailRestore.addEventListener('click', () => {
+    restoreDetail();
+    if (state.selectedId != null) el.detailPane.classList.add('open');
+});
 
 // ---- full-screen body viewer modal (with in-body find) ----
 let modalBodyIndex = null;
@@ -508,6 +855,13 @@ function stepSearch(delta) {
 
 // Detail body controls: Expand opens the modal; the Formatted/Raw toggle re-renders that block.
 el.detail.addEventListener('click', (ev) => {
+    const tab = ev.target.closest('.detail-tab');
+    if (tab) {
+        el.detail.querySelectorAll('.detail-tab').forEach(x => x.classList.toggle('active', x === tab));
+        const target = document.getElementById('detail-' + tab.dataset.jump);
+        if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        return;
+    }
     const exp = ev.target.closest('.body-expand');
     if (exp) { openBodyModal(Number(exp.dataset.body)); return; }
     const bt = ev.target.closest('.bt');
@@ -850,6 +1204,7 @@ initBodyEditor();
 updateBodyVisibility();
 loadFilters();
 renderActiveFilters();
+loadSchemaRules();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
 // backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)

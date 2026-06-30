@@ -1,0 +1,54 @@
+/* IBM Plex Sans (UI) + IBM Plex Mono (wire data), vendored latin woff2 — no CDN at runtime,
+   so the offline e2e suite and air-gapped use both work. font-display: swap avoids a blank
+   first paint while the face loads. */
+
+@font-face {
+    font-family: "Plex Sans";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("plex-sans-400.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Plex Sans";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("plex-sans-500.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Plex Sans";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("plex-sans-600.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Plex Sans";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("plex-sans-700.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Plex Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("plex-mono-400.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Plex Mono";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("plex-mono-500.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Plex Mono";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("plex-mono-600.woff2") format("woff2");
+}
