@@ -570,6 +570,35 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void dashboardPanelAddsListsPersistsAndDeletesLinks() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.click("#dashboard-toggle");
+
+            // choosing a preset fills the URL template and system
+            page.selectOption("#dash-preset", "grafana");
+            assertThat(page.inputValue("#dash-url")).contains("{fromMs}").contains("var-host={host}");
+
+            page.fill("#dash-name", "Open in Grafana");
+            page.selectOption("#dash-scope", "packet");
+            page.click("#dash-save");
+            assertThat(page.innerText("#dash-list")).contains("Open in Grafana").containsIgnoringCase("packet");
+
+            // persists across reload (localStorage)
+            page.reload();
+            page.click("#dashboard-toggle");
+            assertThat(page.innerText("#dash-list")).contains("Open in Grafana");
+
+            // delete -> empty state
+            page.click("#dash-list .dash-delete");
+            page.waitForFunction(
+                    "() => /No dashboard links/.test(document.querySelector('#dash-list').textContent)",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
     void dashboardUrlTemplateSubstitutesEncodesAndValidatesScheme() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

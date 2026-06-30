@@ -933,3 +933,14 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     .detailpane { transition: none; }
     .detail-tab { scroll-behavior: auto; }
 }
+
+.global-links { display: flex; gap: 8px; align-items: center; margin-left: 8px; }
+.dash-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.dash-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--bg-3); color: var(--text);
+    text-decoration: none; font: 12px/1 var(--font-ui);
+}
+.dash-link:hover { border-color: var(--accent); }
+.dash-empty { color: var(--muted); font-size: 12px; }

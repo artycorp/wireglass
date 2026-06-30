@@ -58,6 +58,19 @@ const el = {
     schemaSave: document.getElementById('schema-save'),
     schemaMessage: document.getElementById('schema-message'),
     schemaList: document.getElementById('schema-list'),
+    dashboardToggle: document.getElementById('dashboard-toggle'),
+    dashboardPanel: document.getElementById('dashboard-panel'),
+    dashName: document.getElementById('dash-name'),
+    dashSystem: document.getElementById('dash-system'),
+    dashScope: document.getElementById('dash-scope'),
+    dashPreset: document.getElementById('dash-preset'),
+    dashUrl: document.getElementById('dash-url'),
+    dashMatch: document.getElementById('dash-match'),
+    dashWindow: document.getElementById('dash-window'),
+    dashSave: document.getElementById('dash-save'),
+    dashMessage: document.getElementById('dash-message'),
+    dashList: document.getElementById('dash-list'),
+    globalLinks: document.getElementById('global-links'),
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
     detailClose: document.getElementById('detail-close'),
@@ -584,6 +597,98 @@ function matchesLinkUrl(url, match) {
     catch (e) { return String(url).includes(match); }
 }
 
+function normalizeLink(l) {
+    return {
+        id: l.id || (String(Date.now()) + '-' + Math.random().toString(16).slice(2)),
+        name: String(l.name),
+        system: l.system || 'custom',
+        scope: l.scope === 'global' ? 'global' : 'packet',
+        urlTemplate: String(l.urlTemplate),
+        match: l.match || '',
+    };
+}
+
+function loadDashboardLinks(render = true) {
+    try {
+        const raw = localStorage.getItem(DASHBOARD_LINKS_KEY);
+        const links = raw ? JSON.parse(raw) : [];
+        state.dashboardLinks = Array.isArray(links)
+            ? links.filter(l => l && l.name && l.urlTemplate).map(normalizeLink)
+            : [];
+    } catch (e) {
+        state.dashboardLinks = [];
+    }
+    if (render) refreshDashboardViews();
+}
+
+function saveDashboardLinks() {
+    localStorage.setItem(DASHBOARD_LINKS_KEY, JSON.stringify(state.dashboardLinks));
+    refreshDashboardViews();
+    rerenderSelectedDetail();
+}
+
+function refreshDashboardViews() {
+    renderDashboardList();
+    renderGlobalLinks();
+}
+
+function renderDashboardList() {
+    if (!el.dashList) return;
+    if (!state.dashboardLinks.length) {
+        el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
+        return;
+    }
+    el.dashList.innerHTML = state.dashboardLinks.map(link =>
+        '<div class="schema-rule" data-id="' + esc(link.id) + '">'
+        + '<span class="validation-target">' + esc(link.scope) + '</span>'
+        + '<strong>' + esc(link.name) + '</strong>'
+        + '<code>' + esc(link.urlTemplate) + '</code>'
+        + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>'
+        + '</div>').join('');
+}
+
+function setDashMessage(text, ok) {
+    el.dashMessage.textContent = text;
+    el.dashMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function packetDashboardLinks(packet) {
+    return state.dashboardLinks.filter(l =>
+        l.scope === 'packet' && matchesLinkUrl(packet.url || packet.label || '', l.match));
+}
+
+function dashboardAnchor(link, packet) {
+    const href = safeDashboardHref(buildDashboardUrl(link.urlTemplate, packet));
+    if (!href) return null;
+    const a = document.createElement('a');
+    a.className = 'dash-link sys-' + cssToken(link.system || 'custom');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = link.name || link.urlTemplate;
+    return a;
+}
+
+// Guarded: inert until #global-links exists (added in Task 4).
+function renderGlobalLinks() {
+    if (!el.globalLinks) return;
+    el.globalLinks.innerHTML = '';
+    state.dashboardLinks.filter(l => l.scope === 'global').forEach(l => {
+        const a = dashboardAnchor(l, null);
+        if (a) el.globalLinks.appendChild(a);
+    });
+}
+
+// Guarded: inert until #detail-dashboards-list exists (added in Task 3).
+function mountDashboardLinks(packet) {
+    const host = document.getElementById('detail-dashboards-list');
+    if (!host || !packet) return;
+    host.innerHTML = '';
+    const links = packetDashboardLinks(packet);
+    if (!links.length) { host.innerHTML = '<div class="dash-empty">No dashboard links.</div>'; return; }
+    links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
+}
+
 function setStatus(text, kind) {
     el.status.textContent = text;
     el.status.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)' : kind === 'run' ? 'var(--accent)' : 'var(--muted)';
@@ -834,6 +939,46 @@ el.schemaList.addEventListener('click', (ev) => {
     state.schemaRules = state.schemaRules.filter(rule => rule.id !== bt.dataset.id);
     setSchemaMessage('Deleted', true);
     saveSchemaRules();
+});
+
+// ---- dashboard links panel ----
+el.dashboardToggle.addEventListener('click', () => {
+    const open = el.dashboardPanel.hidden;
+    el.dashboardPanel.hidden = !open;
+    el.dashboardToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) el.dashName.focus();
+});
+el.dashPreset.addEventListener('change', () => {
+    const tpl = DASHBOARD_PRESETS[el.dashPreset.value];
+    if (tpl) { el.dashUrl.value = tpl; el.dashSystem.value = el.dashPreset.value; }
+    el.dashPreset.value = '';
+});
+el.dashWindow.addEventListener('change', () => {
+    const min = Math.max(1, Number(el.dashWindow.value) || 5);
+    localStorage.setItem(DASHBOARD_WINDOW_KEY, String(min * 60000));
+    rerenderSelectedDetail();
+});
+el.dashSave.addEventListener('click', () => {
+    const name = el.dashName.value.trim();
+    const urlTemplate = el.dashUrl.value.trim();
+    if (!name) { setDashMessage('Name is required', false); return; }
+    if (!urlTemplate) { setDashMessage('URL template is required', false); return; }
+    state.dashboardLinks.push(normalizeLink({
+        name, system: el.dashSystem.value, scope: el.dashScope.value,
+        urlTemplate, match: el.dashMatch.value.trim(),
+    }));
+    el.dashName.value = '';
+    el.dashUrl.value = '';
+    el.dashMatch.value = '';
+    setDashMessage('Saved', true);
+    saveDashboardLinks();
+});
+el.dashList.addEventListener('click', (ev) => {
+    const bt = ev.target.closest('.dash-delete');
+    if (!bt) return;
+    state.dashboardLinks = state.dashboardLinks.filter(l => l.id !== bt.dataset.id);
+    setDashMessage('Deleted', true);
+    saveDashboardLinks();
 });
 
 // ---- detail drawer + keyboard navigation ----
@@ -1278,6 +1423,9 @@ updateBodyVisibility();
 loadFilters();
 renderActiveFilters();
 loadSchemaRules();
+const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
+if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));
+loadDashboardLinks();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
 // backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)
