@@ -684,6 +684,25 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void urlColumnGetsMostOfTheTableWidth() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            // fixed layout: the url column must dominate; each fixed column stays narrow.
+            Boolean ok = (Boolean) page.evaluate("""
+                    () => {
+                      const layout = getComputedStyle(document.querySelector('#packet-table')).tableLayout;
+                      const url = document.querySelector('#packet-body tr.pkt .c-url').getBoundingClientRect().width;
+                      const status = document.querySelector('#packet-body tr.pkt .c-status').getBoundingClientRect().width;
+                      return layout === 'fixed' && url > status * 2;
+                    }
+                    """);
+            assertThat(ok).isTrue();
+        }
+    }
+
+    @Test
     void dashboardPanelAddsListsPersistsAndDeletesLinks() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

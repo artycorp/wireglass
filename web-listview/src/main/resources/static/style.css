@@ -531,7 +531,16 @@ tr.empty-row a { color: var(--accent); cursor: pointer; }
     background: linear-gradient(90deg, rgba(76,154,255,.045), transparent 28rem);
 }
 
-table { border-collapse: collapse; width: 100%; }
+table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+colgroup col.c-idx { width: 3rem; }
+colgroup col.c-time { width: 7rem; }
+colgroup col.c-type { width: 4.5rem; }
+colgroup col.c-method { width: 5rem; }
+colgroup col.c-url { width: auto; }
+colgroup col.c-status { width: 4.5rem; }
+colgroup col.c-latency { width: 9.5rem; }
+colgroup col.c-size { width: 5rem; }
+th.c-size, td.c-size { text-align: right; }
 th, td {
     text-align: left;
     padding: 8px 10px;
