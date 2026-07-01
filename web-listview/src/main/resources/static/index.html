@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>jmeter-web-listview — traffic inspector</title>
+    <title>Wireglass — see every packet your load test sends</title>
     <link rel="stylesheet" href="vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css"/>
     <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 <header class="topbar">
-    <div class="brand">jmeter <span>web-listview</span></div>
+    <div class="brand">wire<span>glass</span> ⌁</div>
     <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel">
         <span class="plus">+</span> New run <span class="caret">▾</span>
     </button>
@@ -187,12 +187,15 @@
                     <input id="dash-name" type="text" placeholder="Open in Grafana"/>
                 </label>
                 <label class="schema-field">System
-                    <select id="dash-system">
-                        <option value="grafana">Grafana</option>
-                        <option value="splunk">Splunk</option>
-                        <option value="signalfx">SignalFx</option>
-                        <option value="custom">Custom</option>
-                    </select>
+                    <span class="system-select">
+                        <img id="dash-system-icon" class="system-icon" src="icons/grafana.svg" alt="Grafana" loading="lazy"/>
+                        <select id="dash-system">
+                            <option value="grafana">Grafana</option>
+                            <option value="splunk">Splunk</option>
+                            <option value="signalfx">SignalFx</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </span>
                 </label>
                 <label class="schema-field">Scope
                     <select id="dash-scope">
@@ -200,7 +203,7 @@
                         <option value="global">global</option>
                     </select>
                 </label>
-                <label class="schema-field">Insert preset
+                <label class="schema-field dashboard-preset-field">Insert preset
                     <select id="dash-preset">
                         <option value="">—</option>
                         <option value="grafana">Grafana</option>
@@ -208,17 +211,17 @@
                         <option value="signalfx">SignalFx</option>
                     </select>
                 </label>
-                <label class="schema-field pattern">URL template
+                <label class="schema-field pattern dashboard-url-field">URL template
                     <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
                     <span id="dash-url-preview" class="template-preview" aria-live="polite"></span>
                 </label>
-                <label class="schema-field">Match (packet, optional)
+                <label class="schema-field dashboard-match-field">Match (packet, optional)
                     <input id="dash-match" type="text" placeholder="api.example.com"/>
                 </label>
-                <label class="schema-field">Window ± min
+                <label class="schema-field dashboard-window-field">Window ± min
                     <input id="dash-window" type="number" min="1" max="1440" value="5"/>
                 </label>
-                <div class="schema-actions">
+                <div class="schema-actions dashboard-actions">
                     <button type="button" id="dash-save" class="primary">Save</button>
                     <span id="dash-message" class="schema-message" role="status"></span>
                 </div>

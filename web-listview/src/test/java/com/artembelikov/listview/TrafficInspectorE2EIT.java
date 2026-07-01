@@ -736,6 +736,33 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void dashboardLinksShowSystemIconsInFormListAndDetail() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "dashboards");
+
+            page.selectOption("#dash-system", "splunk");
+            assertThat(page.getAttribute(".system-select .system-icon", "alt")).isEqualTo("Splunk");
+
+            page.fill("#dash-name", "Splunk host");
+            page.selectOption("#dash-scope", "packet");
+            page.fill("#dash-url", "https://splunk.example/search?host={host}");
+            page.fill("#dash-match", "127.0.0.1");
+            page.click("#dash-save");
+            assertThat(page.getAttribute("#dash-list .schema-rule .system-icon", "alt")).isEqualTo("Splunk");
+
+            page.click("#settings-toggle");
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector("#detail-dashboards-list .dash-link .system-icon",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.getAttribute("#detail-dashboards-list .dash-link .system-icon", "alt"))
+                    .isEqualTo("Splunk");
+        }
+    }
+
+    @Test
     void dashboardUrlTemplateSubstitutesEncodesAndValidatesScheme() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

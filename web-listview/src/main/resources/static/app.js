@@ -70,6 +70,7 @@ const el = {
     dashboardPanel: document.getElementById('dashboard-panel'),
     dashName: document.getElementById('dash-name'),
     dashSystem: document.getElementById('dash-system'),
+    dashSystemIcon: document.getElementById('dash-system-icon'),
     dashScope: document.getElementById('dash-scope'),
     dashPreset: document.getElementById('dash-preset'),
     dashUrl: document.getElementById('dash-url'),
@@ -557,6 +558,38 @@ const DASHBOARD_PRESETS = {
     splunk: 'https://SPLUNK/app/search/search?q=search%20host%3D{host}&earliest={fromSec}&latest={toSec}',
     signalfx: 'https://app.signalfx.com/#/dashboard/ID?startTime={fromIso}&endTime={toIso}',
 };
+const DASHBOARD_SYSTEMS = {
+    grafana: { label: 'Grafana', icon: 'icons/grafana.svg' },
+    splunk: { label: 'Splunk', icon: 'icons/splunk.svg' },
+    signalfx: { label: 'SignalFx', icon: 'icons/signalfx.svg' },
+    custom: { label: 'Custom', icon: 'icons/custom.svg' },
+};
+
+function dashboardSystem(system) {
+    return DASHBOARD_SYSTEMS[system] || DASHBOARD_SYSTEMS.custom;
+}
+
+function dashboardSystemIconHtml(system) {
+    const meta = dashboardSystem(system);
+    return '<img class="system-icon" src="' + esc(meta.icon) + '" alt="' + esc(meta.label) + '" loading="lazy"/>';
+}
+
+function createDashboardSystemIcon(system) {
+    const meta = dashboardSystem(system);
+    const img = document.createElement('img');
+    img.className = 'system-icon';
+    img.src = meta.icon;
+    img.alt = meta.label;
+    img.loading = 'lazy';
+    return img;
+}
+
+function updateDashboardSystemPreview() {
+    if (!el.dashSystemIcon) return;
+    const meta = dashboardSystem(el.dashSystem.value);
+    el.dashSystemIcon.src = meta.icon;
+    el.dashSystemIcon.alt = meta.label;
+}
 
 function dashboardWindowMs() {
     const stored = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
@@ -714,6 +747,7 @@ function renderDashboardList() {
     }
     el.dashList.innerHTML = state.dashboardLinks.map(link =>
         '<div class="schema-rule" data-id="' + esc(link.id) + '">'
+        + dashboardSystemIconHtml(link.system)
         + '<span class="validation-target">' + esc(link.scope) + '</span>'
         + '<strong>' + esc(link.name) + '</strong>'
         + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
@@ -739,7 +773,8 @@ function dashboardAnchor(link, packet) {
     a.href = href;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
-    a.textContent = link.name || link.urlTemplate;
+    a.appendChild(createDashboardSystemIcon(link.system));
+    a.appendChild(document.createTextNode(link.name || link.urlTemplate));
     return a;
 }
 
@@ -1104,9 +1139,15 @@ el.schemaList.addEventListener('click', (ev) => {
 // ---- dashboard links panel ----
 el.dashPreset.addEventListener('change', () => {
     const tpl = DASHBOARD_PRESETS[el.dashPreset.value];
-    if (tpl) { el.dashUrl.value = tpl; el.dashSystem.value = el.dashPreset.value; updateDashboardTemplatePreview(); }
+    if (tpl) {
+        el.dashUrl.value = tpl;
+        el.dashSystem.value = el.dashPreset.value;
+        updateDashboardTemplatePreview();
+        updateDashboardSystemPreview();
+    }
     el.dashPreset.value = '';
 });
+el.dashSystem.addEventListener('change', updateDashboardSystemPreview);
 el.dashUrl.addEventListener('input', updateDashboardTemplatePreview);
 el.dashWindow.addEventListener('change', () => {
     const min = Math.max(1, Number(el.dashWindow.value) || 5);
@@ -1579,6 +1620,7 @@ loadFilters();
 renderActiveFilters();
 loadSettingsTab();
 loadLanguage();
+updateDashboardSystemPreview();
 updateDashboardTemplatePreview();
 loadSchemaRules();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));

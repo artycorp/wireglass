@@ -1,4 +1,8 @@
-# jmeter-web-listview
+# Wireglass
+
+> A smoked-glass pane onto the wire — see every packet your load test sends.
+>
+> _(formerly `jmeter-web-listview`; the Maven modules and Java packages keep that name.)_
 
 A web application that runs load tests on top of [jmeter-java-dsl](https://github.com/abstracta/jmeter-java-dsl)
 and, in real time, shows the contents of every sent/received **HTTP/HTTPS** and **WebSocket** packet
