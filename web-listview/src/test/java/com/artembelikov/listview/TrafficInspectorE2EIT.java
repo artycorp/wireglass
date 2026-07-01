@@ -906,6 +906,43 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void traceHeaderRendersConfiguredLink() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            // buildTraceUrl substitutes {value} and rejects non-http(s) templates.
+            assertThat((String) page.evaluate(
+                    "() => buildTraceUrl('https://sfx.test/trace/{value}', 'abc/def')"))
+                    .isEqualTo("https://sfx.test/trace/abc%2Fdef");
+            assertThat(page.evaluate(
+                    "() => buildTraceUrl('javascript:alert(1)', 'x')")).isNull();
+
+            // Use a header distinct from the seeded default (x-b3-traceid) so this asserts the
+            // user-configured template, not the seed (traceLinkFor returns the first match).
+            openSettingsTab(page, "trace");
+            page.fill("#trace-header", "x-request-id");
+            page.fill("#trace-url", "https://sfx.test/trace/{value}");
+            page.click("#trace-save");
+            assertThat(page.innerText("#trace-list")).contains("x-request-id");
+            page.click("#settings-back");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'trace-test', url: 'https://x.test/', label: 't', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 'th',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: { 'X-Request-Id': 'deadbeef' },
+                      responseHeaders: {}, requestBody: '', responseBody: '{}'
+                    })
+                    """);
+            var link = page.querySelector("#detail-headers a.trace-link");
+            assertThat(link).isNotNull();
+            assertThat(link.getAttribute("href")).isEqualTo("https://sfx.test/trace/deadbeef");
+            assertThat(link.getAttribute("target")).isEqualTo("_blank");
+            assertThat(link.getAttribute("rel")).contains("noopener");
+        }
+    }
+
+    @Test
     void setCookieHeaderIsSplitIntoNameValueTable() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

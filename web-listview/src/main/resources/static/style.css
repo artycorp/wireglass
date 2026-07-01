@@ -376,9 +376,8 @@ button:disabled { opacity: .45; cursor: default; }
 #dashboard-panel {
     grid-template-columns: minmax(180px, 1fr) 130px 130px minmax(150px, 180px);
 }
-#dashboard-panel .dashboard-url-field {
-    grid-column: 1 / -1;
-}
+#dashboard-panel .dashboard-url-field,
+#trace-panel .schema-field.pattern { grid-column: 1 / -1; }
 #dashboard-panel .dashboard-preset-field {
     grid-column: 4 / 5;
     grid-row: 1;
@@ -895,6 +894,19 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     font-family: var(--font-mono);
     font-size: 11px;
     text-transform: uppercase;
+}
+.trace-header-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 68px;
+    padding: 2px 7px;
+    border: 1px solid rgba(76,154,255,.28);
+    border-radius: 999px;
+    color: var(--accent);
+    background: rgba(76,154,255,.08);
+    font-family: var(--font-mono);
+    font-size: 11px;
 }
 .validation-rule ul {
     margin: 8px 0 0;

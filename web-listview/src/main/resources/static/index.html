@@ -169,6 +169,9 @@
                 <button type="button" class="settings-tab" id="settings-tab-dashboards"
                         role="tab" aria-selected="false" aria-controls="dashboard-panel"
                         data-settings-tab="dashboards">Dashboards <span id="dashboard-count">0</span></button>
+                <button type="button" class="settings-tab" id="settings-tab-trace"
+                        role="tab" aria-selected="false" aria-controls="trace-panel"
+                        data-settings-tab="trace">Trace links <span id="trace-count">0</span></button>
                 <button type="button" class="settings-tab" id="settings-tab-language"
                         role="tab" aria-selected="false" aria-controls="language-panel"
                         data-settings-tab="language">Language</button>
@@ -236,6 +239,19 @@
                     <span id="dash-message" class="schema-message" role="status"></span>
                 </div>
                 <div id="dash-list" class="schema-list"></div>
+            </div>
+            <div class="schema-panel settings-pane" id="trace-panel" role="tabpanel" aria-labelledby="settings-tab-trace" hidden>
+                <label class="schema-field">Header
+                    <input id="trace-header" type="text" placeholder="x-b3-traceid"/>
+                </label>
+                <label class="schema-field pattern">URL template
+                    <input id="trace-url" type="text" placeholder="https://app.signalfx.com/#/apm/traces/{value}"/>
+                </label>
+                <div class="schema-actions">
+                    <button type="button" id="trace-save" class="primary">Save</button>
+                    <span id="trace-message" class="schema-message" role="status"></span>
+                </div>
+                <div id="trace-list" class="schema-list"></div>
             </div>
             <div class="language-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
                 <div class="language-options" role="group" aria-label="Interface language">

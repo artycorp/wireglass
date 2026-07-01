@@ -20,6 +20,7 @@ const state = {
     detailCollapsed: false,
     schemaRules: [],
     dashboardLinks: [],
+    traceLinks: [],
     settingsTab: 'schema',
 };
 
@@ -80,6 +81,12 @@ const el = {
     dashSave: document.getElementById('dash-save'),
     dashMessage: document.getElementById('dash-message'),
     dashList: document.getElementById('dash-list'),
+    traceHeader: document.getElementById('trace-header'),
+    traceUrl: document.getElementById('trace-url'),
+    traceSave: document.getElementById('trace-save'),
+    traceMessage: document.getElementById('trace-message'),
+    traceList: document.getElementById('trace-list'),
+    traceCount: document.getElementById('trace-count'),
     globalLinks: document.getElementById('global-links'),
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
@@ -422,7 +429,16 @@ function sectionHeaders(title, headers, direction) {
     if (!headers || Object.keys(headers).length === 0) return '';
     let rows = '';
     for (const [k, v] of Object.entries(headers)) {
-        const rendered = isCookieHeader(k) ? cookieTableHtml(k, v) : esc(v);
+        let rendered;
+        if (isCookieHeader(k)) {
+            rendered = cookieTableHtml(k, v);
+        } else {
+            const tpl = traceLinkFor(k);
+            const href = tpl ? buildTraceUrl(tpl, v) : null;
+            rendered = href
+                ? '<a class="trace-link" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(v) + '</a>'
+                : esc(v);
+        }
         rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + rendered + '</td></tr>';
     }
     const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
@@ -642,6 +658,7 @@ function esc(s) {
 
 // ---- dashboard links ----
 const DASHBOARD_LINKS_KEY = 'listview.dashboardLinks';
+const TRACE_LINKS_KEY = 'listview.traceLinks';
 const DASHBOARD_WINDOW_KEY = 'listview.dashboardWindowMs';
 const DEFAULT_DASHBOARD_WINDOW_MS = 300000;  // ±5 min
 const DASHBOARD_PRESETS = {
@@ -889,15 +906,63 @@ function mountDashboardLinks(packet) {
     links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
 }
 
+function loadTraceLinks(render = true) {
+    let stored = null;
+    try {
+        const raw = localStorage.getItem(TRACE_LINKS_KEY);
+        if (raw !== null) stored = JSON.parse(raw);
+    } catch (e) { stored = null; }
+    if (stored === null) {
+        // seed a sensible default the user can edit (real SignalFX realm/org filled in later).
+        state.traceLinks = [{ header: 'x-b3-traceid', urlTemplate: 'https://app.signalfx.com/#/apm/traces/{value}' }];
+    } else {
+        state.traceLinks = Array.isArray(stored)
+            ? stored.filter(t => t && t.header && t.urlTemplate) : [];
+    }
+    if (render) renderTraceLinks();
+}
+
+function saveTraceLinks() {
+    localStorage.setItem(TRACE_LINKS_KEY, JSON.stringify(state.traceLinks));
+    renderTraceLinks();
+    rerenderSelectedDetail();
+}
+
+function renderTraceLinks() {
+    if (!el.traceList) return;
+    if (el.traceCount) el.traceCount.textContent = String(state.traceLinks.length);
+    if (!state.traceLinks.length) {
+        el.traceList.innerHTML = '<div class="schema-empty">No trace links.</div>';
+        return;
+    }
+    el.traceList.innerHTML = state.traceLinks.map((t, i) =>
+        '<div class="schema-rule" data-trace="' + i + '">'
+        + '<span class="trace-header-label">' + esc(t.header) + '</span>'
+        + '<code>' + esc(t.urlTemplate) + '</code>'
+        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">Delete</button>'
+        + '</div>').join('');
+}
+
+function traceLinkFor(headerName) {
+    const n = String(headerName).toLowerCase();
+    const hit = state.traceLinks.find(t => t.header.toLowerCase() === n);
+    return hit ? hit.urlTemplate : null;
+}
+
+function buildTraceUrl(template, value) {
+    const href = String(template).replace(/\{value\}/g, encodeURIComponent(value));
+    return /^https?:\/\//i.test(href) ? href : null;
+}
+
 function loadSettingsTab() {
     const stored = localStorage.getItem(SETTINGS_TAB_KEY);
-    setSettingsTab(['dashboards', 'language'].includes(stored) ? stored : 'schema', false);
+    setSettingsTab(['dashboards', 'language', 'trace'].includes(stored) ? stored : 'schema', false);
 }
 
 function setSettingsTab(tab, persist = true) {
-    state.settingsTab = ['dashboards', 'language'].includes(tab) ? tab : 'schema';
+    state.settingsTab = ['dashboards', 'language', 'trace'].includes(tab) ? tab : 'schema';
     if (persist) localStorage.setItem(SETTINGS_TAB_KEY, state.settingsTab);
-    [el.schemaPanel, el.dashboardPanel, document.getElementById('language-panel')].forEach(panel => {
+    [el.schemaPanel, el.dashboardPanel, document.getElementById('trace-panel'), document.getElementById('language-panel')].forEach(panel => {
         if (panel) panel.hidden = panel.id !== state.settingsTabPanelId;
     });
     el.settingsTabs.forEach(tabEl => {
@@ -911,6 +976,7 @@ Object.defineProperty(state, 'settingsTabPanelId', {
     get() {
         if (state.settingsTab === 'dashboards') return 'dashboard-panel';
         if (state.settingsTab === 'language') return 'language-panel';
+        if (state.settingsTab === 'trace') return 'trace-panel';
         return 'schema-panel';
     }
 });
@@ -921,6 +987,8 @@ function focusActiveSettingsField() {
     } else if (state.settingsTab === 'language') {
         const active = document.querySelector('.language-option.active');
         if (active) active.focus();
+    } else if (state.settingsTab === 'trace') {
+        el.traceHeader.focus();
     } else {
         el.schemaPattern.focus();
     }
@@ -1267,6 +1335,28 @@ el.dashList.addEventListener('click', (ev) => {
     setDashMessage('Deleted', true);
     saveDashboardLinks();
 });
+
+// ---- trace links panel ----
+if (el.traceSave) {
+    el.traceSave.addEventListener('click', () => {
+        const header = el.traceHeader.value.trim();
+        const urlTemplate = el.traceUrl.value.trim();
+        if (!header || !urlTemplate) { el.traceMessage.textContent = 'Header and URL template are required.'; el.traceMessage.className = 'schema-message'; return; }
+        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = 'URL template must be http(s) and contain {value}.'; el.traceMessage.className = 'schema-message'; return; }
+        state.traceLinks.push({ header, urlTemplate });
+        saveTraceLinks();
+        el.traceHeader.value = ''; el.traceUrl.value = '';
+        el.traceMessage.textContent = 'Saved.'; el.traceMessage.className = 'schema-message ok';
+    });
+}
+if (el.traceList) {
+    el.traceList.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.trace-delete');
+        if (!btn) return;
+        state.traceLinks.splice(Number(btn.dataset.trace), 1);
+        saveTraceLinks();
+    });
+}
 
 // ---- detail drawer + keyboard navigation ----
 el.detailClose.addEventListener('click', closeDetail);
@@ -1714,6 +1804,7 @@ loadLanguage();
 updateDashboardSystemPreview();
 updateDashboardTemplatePreview();
 loadSchemaRules();
+loadTraceLinks();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));
 loadDashboardLinks();
