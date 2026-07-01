@@ -980,6 +980,12 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .headers-card.outgoing .headers-direction { color: var(--accent); background: rgba(76,154,255,.12); }
 .headers-card.incoming .headers-direction { color: var(--ok); background: rgba(63,185,80,.12); }
 .headers-table { margin-bottom: 0; }
+.cookie-table { border-collapse: collapse; width: 100%; }
+.cookie-table td { padding: 2px 8px 2px 0; vertical-align: top; border: 0; }
+.cookie-table .ck-name { color: var(--text); font-weight: 600; white-space: nowrap; }
+.cookie-table .ck-value { color: var(--accent); word-break: break-all; }
+.cookie-table tr.ck-attr .ck-name,
+.cookie-table tr.ck-attr .ck-value { color: var(--muted); font-weight: 400; }
 .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
 .badge.ok { background: rgba(63,185,80,.18); color: var(--ok); }
 .badge.err { background: rgba(248,81,73,.18); color: var(--err); }

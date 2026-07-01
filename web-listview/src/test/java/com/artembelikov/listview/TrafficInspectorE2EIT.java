@@ -904,4 +904,28 @@ class TrafficInspectorE2EIT {
             assertThat(pretty).contains("  <b>1</b>");
         }
     }
+
+    @Test
+    void setCookieHeaderIsSplitIntoNameValueTable() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            String parsed = (String) page.evaluate(
+                    "() => JSON.stringify(parseCookie('Set-Cookie', 'sid=abc123; Path=/; HttpOnly'))");
+            assertThat(parsed).contains("sid").contains("abc123").contains("Path").contains("HttpOnly");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'cookie-test', url: 'https://x.test/', label: 'c', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 't',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: { Cookie: 'a=1; b=2' },
+                      responseHeaders: { 'Set-Cookie': 'sid=abc123; Path=/; HttpOnly' },
+                      requestBody: '', responseBody: '{}'
+                    })
+                    """);
+            assertThat(page.querySelector("#detail-headers .cookie-table")).isNotNull();
+            String headers = page.innerText("#detail-headers");
+            assertThat(headers).contains("sid").contains("abc123").contains("HttpOnly");
+        }
+    }
 }

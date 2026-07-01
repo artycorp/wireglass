@@ -389,11 +389,41 @@ function dashboardSectionPlaceholder() {
         + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
+function isCookieHeader(name) {
+    const n = String(name).toLowerCase();
+    return n === 'cookie' || n === 'set-cookie';
+}
+
+// Split a Cookie / Set-Cookie value into name/value pairs. For Set-Cookie the first segment is the
+// cookie itself and the remaining segments are attributes (Path, HttpOnly, ...). Attribute-only
+// segments (no '=') carry an empty value. Pure — safe to unit-test.
+function parseCookie(headerName, value) {
+    const segments = String(value).split(';').map(s => s.trim()).filter(Boolean);
+    const toPair = (seg) => {
+        const eq = seg.indexOf('=');
+        return eq < 0 ? { name: seg, value: '' } : { name: seg.slice(0, eq).trim(), value: seg.slice(eq + 1).trim() };
+    };
+    if (headerName.toLowerCase() === 'set-cookie') {
+        return { pairs: segments.length ? [toPair(segments[0])] : [], attributes: segments.slice(1).map(toPair) };
+    }
+    return { pairs: segments.map(toPair), attributes: [] };
+}
+
+function cookieTableHtml(headerName, value) {
+    const parsed = parseCookie(headerName, value);
+    const row = (p, cls) => '<tr class="' + cls + '"><td class="ck-name">' + esc(p.name)
+        + '</td><td class="ck-value">' + esc(p.value) + '</td></tr>';
+    const pairs = parsed.pairs.map(p => row(p, 'ck-pair')).join('');
+    const attrs = parsed.attributes.map(p => row(p, 'ck-attr')).join('');
+    return '<table class="cookie-table">' + pairs + attrs + '</table>';
+}
+
 function sectionHeaders(title, headers, direction) {
     if (!headers || Object.keys(headers).length === 0) return '';
     let rows = '';
     for (const [k, v] of Object.entries(headers)) {
-        rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + esc(v) + '</td></tr>';
+        const rendered = isCookieHeader(k) ? cookieTableHtml(k, v) : esc(v);
+        rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + rendered + '</td></tr>';
     }
     const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
     const label = kind === 'incoming' ? 'incoming' : 'outgoing';
