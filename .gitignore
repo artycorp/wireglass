@@ -32,3 +32,13 @@ logs/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# --- Local-only load test against a private test stand (not part of the product) ---
+/loadtest/
+
+# --- AI dev-workflow scratch and internal planning docs (not published) ---
+/.superpowers/
+/.remember/
+/progress.md
+/docs/superpowers/
+/.playwright-mcp/
