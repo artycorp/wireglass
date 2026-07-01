@@ -290,6 +290,7 @@ function selectPacket(id, row) {
 }
 
 function closeDetail() {
+    teardownDetailScrollSpy();
     collapseDetail();
     el.detailPane.classList.remove('open');
 }
@@ -308,7 +309,7 @@ function restoreDetail() {
 
 function renderDetail(packet) {
     detailBodies = [];
-    if (!packet) { el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
+    if (!packet) { teardownDetailScrollSpy(); el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
     const validation = validatePacket(packet);
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -350,6 +351,7 @@ function renderDetail(packet) {
         + '</div>';
     mountDetailBodies();
     mountDashboardLinks(packet);
+    mountDetailScrollSpy();
 }
 
 function detailMetric(label, value, suffix) {
@@ -403,6 +405,7 @@ function sectionHeaders(title, headers, direction) {
 // Detail bodies: valid JSON/HTML is rendered into a read-only CodeMirror (highlight + pretty-print);
 // "Raw" falls back to a plain <pre> of the original bytes. Views are mounted after innerHTML is set.
 let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered body block
+let detailSpy = null;   // IntersectionObserver that syncs nav tabs to scroll position
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
 function bodyBlock(title, body, binary, truncated, target, validationErrors) {
@@ -528,6 +531,43 @@ function renderDetailView(i) {
 
 function mountDetailBodies() {
     detailBodies.forEach((b, i) => renderDetailView(i));
+}
+
+function teardownDetailScrollSpy() {
+    if (detailSpy) { detailSpy.disconnect(); detailSpy = null; }
+}
+
+function mountDetailScrollSpy() {
+    teardownDetailScrollSpy();
+    const jumps = ['overview', 'headers', 'bodies', 'raw'];
+    const sections = jumps
+        .map(j => ({ j, node: document.getElementById('detail-' + j) }))
+        .filter(s => s.node);
+    if (!sections.length) return;
+    const pane = el.detailPane;
+    let active = null;
+    const setActive = (jump) => {
+        if (jump === active) return;
+        active = jump;
+        el.detail.querySelectorAll('.detail-tab').forEach(t =>
+            t.classList.toggle('active', t.dataset.jump === jump));
+    };
+    // Determine the active section: the last section (largest offsetTop) whose top edge is within
+    // the first half of the visible pane. This correctly handles the case where scrollIntoView
+    // cannot scroll all the way (e.g. last section) — the last visible-from-top section wins.
+    const updateActive = () => {
+        const threshold = pane.scrollTop + pane.clientHeight / 2;
+        let best = sections[0];
+        for (const s of sections) {
+            if (s.node.offsetTop <= threshold) best = s;
+        }
+        setActive(best.j);
+    };
+    // Poll via rAF while the spy is alive so it reacts immediately after any scrollIntoView call.
+    let alive = true;
+    const tick = () => { if (!alive) return; updateActive(); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    detailSpy = { disconnect() { alive = false; } };
 }
 
 // For WebSocket samples the request body is the frame the client sent (↑) and the response body is

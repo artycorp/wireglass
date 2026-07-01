@@ -856,6 +856,25 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void navTabHighlightFollowsScroll() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector(".detail h2",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            // scrolling the raw section into view should activate the Raw tab without a click.
+            page.evaluate("() => document.getElementById('detail-raw').scrollIntoView({block:'start'})");
+            page.waitForFunction(
+                    "() => document.querySelector('.detail-tab[data-jump=raw]').classList.contains('active')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.querySelector(".detail-tab.active").getAttribute("data-jump")).isEqualTo("raw");
+        }
+    }
+
+    @Test
     void globalDashboardLinkAppearsInTopBar() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
