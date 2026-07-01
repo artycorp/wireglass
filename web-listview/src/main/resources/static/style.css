@@ -532,6 +532,7 @@ tr.empty-row a { color: var(--accent); cursor: pointer; }
 
 table { border-collapse: collapse; width: 100%; table-layout: fixed; }
 colgroup col.c-idx { width: 3rem; }
+colgroup col.c-valid { width: 2.2rem; }
 colgroup col.c-time { width: 7rem; }
 colgroup col.c-type { width: 4.5rem; }
 colgroup col.c-method { width: 5rem; }
@@ -1226,3 +1227,10 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .dash-empty { color: var(--muted); font-size: 12px; }
 .cm-body-valid { box-shadow: inset 3px 0 0 var(--ok); background: rgba(63, 185, 80, .05); }
 .cm-body-invalid { box-shadow: inset 3px 0 0 var(--err); background: rgba(248, 81, 73, .06); }
+
+th.c-valid, td.c-valid { text-align: center; }
+.valid-shield { font-weight: 700; }
+.valid-shield.valid { color: var(--ok); }
+.valid-shield.invalid { color: var(--err); }
+tr.pkt.pkt-valid { background: rgba(63, 185, 80, .045); }
+tr.pkt.pkt-invalid { background: rgba(248, 81, 73, .05); }

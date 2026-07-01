@@ -967,6 +967,24 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void listRowShowsSchemaValidationIndicator() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "schema");
+            page.fill("#schema-pattern", "/");
+            page.selectOption("#schema-target", "response");
+            page.fill("#schema-json", "{\"type\":\"object\",\"required\":[\"missing\"]}");
+            page.click("#schema-save");
+            page.click("#settings-back");
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            assertThat(page.querySelector("#packet-body tr.pkt.pkt-invalid")).isNotNull();
+            assertThat(page.querySelector("#packet-body tr.pkt .c-valid .valid-shield")).isNotNull();
+        }
+    }
+
+    @Test
     void invalidResponseBodyIsTinted() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

@@ -193,6 +193,16 @@ function appendRow(packet) {
     const row = el.rowTpl.content.firstElementChild.cloneNode(true);
     row.dataset.id = packet.id;
     row.querySelector('.c-idx').textContent = idx;
+    const validation = validatePacket(packet);
+    if (validation.results.length) {
+        const invalid = validation.results.some(r => r.errors.length);
+        row.classList.add(invalid ? 'pkt-invalid' : 'pkt-valid');
+        const shield = document.createElement('span');
+        shield.className = 'valid-shield ' + (invalid ? 'invalid' : 'valid');
+        shield.textContent = invalid ? '✗' : '✓';
+        shield.title = invalid ? 'Schema: invalid' : 'Schema: valid';
+        row.querySelector('.c-valid').appendChild(shield);
+    }
     row.querySelector('.c-time').textContent = formatTime(packet.timestamp);
     const typeCell = row.querySelector('.c-type');
     typeCell.innerHTML = '<span class="type-pill">' + esc(packet.type) + '</span>';
