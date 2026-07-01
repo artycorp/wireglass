@@ -203,13 +203,18 @@ async function loadRuns() {
     }
 }
 
+function shortId(id) {
+    return id ? String(id).slice(0, 8) : '';
+}
+
 function renderRunList() {
     if (!el.runList || !el.runAll) return;
     el.runAll.classList.toggle('active', !state.selectedRunId);
     el.runList.innerHTML = state.runs.map(run =>
         '<button type="button" class="run-chip' + (run.id === state.selectedRunId ? ' active' : '') + '"'
-        + ' data-run-id="' + esc(run.id) + '">'
+        + ' data-run-id="' + esc(run.id) + '" title="run ' + esc(run.id) + '">'
         + '<span class="src">' + esc(run.source) + '</span> '
+        + '<span class="rid">#' + esc(shortId(run.id)) + '</span> '
         + '<span class="state">' + esc(run.state) + '</span>'
         + '</button>').join('');
 }
@@ -1101,8 +1106,9 @@ function updateSettingsCounts() {
     if (el.dashboardCount) el.dashboardCount.textContent = String(state.dashboardLinks.length);
 }
 
-function setStatus(text, kind) {
-    el.status.textContent = text;
+function setStatus(text, kind, runId) {
+    el.status.textContent = runId ? text + ' · #' + shortId(runId) : text;
+    el.status.title = runId || '';
     el.status.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)' : kind === 'run' ? 'var(--accent)' : 'var(--muted)';
 }
 
@@ -1303,7 +1309,7 @@ el.demo.addEventListener('click', async () => {
 el.stop.addEventListener('click', async () => {
     if (!state.activeRunId) return;
     await fetch('/api/runs/' + state.activeRunId + '/stop', { method: 'POST' });
-    setStatus('stopping…');
+    setStatus('stopping…', 'run', state.activeRunId);
 });
 
 el.clear.addEventListener('click', async () => {
@@ -1632,7 +1638,7 @@ async function afterStart(status) {
     await loadRuns();
     renderRunList();
     await loadRecent();
-    setStatus('running…', 'run');
+    setStatus('running…', 'run', status.id);
     el.stop.disabled = false;
     pollStatus(status.id);
 }
@@ -1643,7 +1649,7 @@ function pollStatus(id) {
         if (!r.ok) return;
         const s = await r.json();
         if (s.state === 'RUNNING') {
-            setStatus('running… ' + s.capturedSamples + ' samples', 'run');
+            setStatus('running… ' + s.capturedSamples + ' samples', 'run', id);
             return;
         }
         clearInterval(handle);
@@ -1653,9 +1659,9 @@ function pollStatus(id) {
             await loadRecent();
         }
         el.stop.disabled = true;
-        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok');
-        else if (s.state === 'FAILED') setStatus('failed', 'err');
-        else setStatus(s.state, 'muted');
+        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok', id);
+        else if (s.state === 'FAILED') setStatus('failed', 'err', id);
+        else setStatus(s.state, 'muted', id);
     }, 1000);
 }
 

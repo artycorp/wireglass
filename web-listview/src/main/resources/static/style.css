@@ -206,6 +206,10 @@ button:disabled { opacity: .45; cursor: default; }
     border-color: rgba(76,154,255,.45);
     color: var(--text);
 }
+.run-chip .rid {
+    font-family: var(--font-mono);
+    color: var(--muted);
+}
 .run-chip .state {
     color: var(--accent);
     text-transform: lowercase;

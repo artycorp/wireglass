@@ -11,10 +11,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT_DIR/web-listview"
 
 echo "[1/3] Compiling & packaging (skip tests)..."
-mvn -q -pl web-listview -am -DskipTests install
+mvn -q -f "$ROOT_DIR/pom.xml" -pl web-listview -am -DskipTests install
+
+cd "$ROOT_DIR/web-listview"
 
 echo "[2/3] Resolving dependency classpath..."
 CP_FILE="$(mktemp)"
