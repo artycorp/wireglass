@@ -1224,3 +1224,5 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 }
 .dash-link:hover { border-color: var(--accent); }
 .dash-empty { color: var(--muted); font-size: 12px; }
+.cm-body-valid { box-shadow: inset 3px 0 0 var(--ok); background: rgba(63, 185, 80, .05); }
+.cm-body-invalid { box-shadow: inset 3px 0 0 var(--err); background: rgba(248, 81, 73, .06); }

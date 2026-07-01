@@ -352,8 +352,8 @@ function renderDetail(packet) {
         + dashboardSectionPlaceholder()
         + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
         + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
-        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request)
-        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response) + '</section>'
+        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
+        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
         + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
@@ -454,7 +454,7 @@ let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered bod
 let detailSpy = null;   // IntersectionObserver that syncs nav tabs to scroll position
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
-function bodyBlock(title, body, binary, truncated, target, validationErrors) {
+function bodyBlock(title, body, binary, truncated, target, validationErrors, validationState) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? ' (truncated)' : '');
@@ -466,7 +466,7 @@ function bodyBlock(title, body, binary, truncated, target, validationErrors) {
     } else {
         note += ' (binary — hex preview)';
     }
-    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [] }) - 1;
+    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [], validationState: validationState || null }) - 1;
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
     const toggle = mode ? viewToggleHtml(i) : '';
     const expand = ' <button type="button" class="body-expand" data-body="' + i
@@ -529,6 +529,8 @@ function detectLang(body) {
 // formatted -> highlighted CodeMirror. `where` tunes sizing ('detail' caps height, 'modal' fills).
 function fillViewer(container, b, raw, where) {
     container.innerHTML = '';
+    container.classList.remove('cm-body-valid', 'cm-body-invalid');
+    if (b.validationState) container.classList.add('cm-body-' + b.validationState);
     if (raw || !b.mode || !window.CodeMirror) {
         const pre = document.createElement('pre');
         pre.textContent = raw ? b.body : (b.mode ? b.code : b.body);
@@ -1073,6 +1075,12 @@ function setSchemaMessage(text, ok) {
 function rerenderSelectedDetail() {
     if (state.selectedId == null) return;
     renderDetail(state.packets.find(p => p.id === state.selectedId));
+}
+
+function bodyValidationState(validation, target) {
+    const matched = validation.results.filter(r => r.target === target);
+    if (!matched.length) return null;
+    return matched.some(r => r.errors.length) ? 'invalid' : 'valid';
 }
 
 function validatePacket(packet) {

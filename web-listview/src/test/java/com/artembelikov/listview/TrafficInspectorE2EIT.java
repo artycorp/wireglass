@@ -965,4 +965,30 @@ class TrafficInspectorE2EIT {
             assertThat(headers).contains("sid").contains("abc123").contains("HttpOnly");
         }
     }
+
+    @Test
+    void invalidResponseBodyIsTinted() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "schema");
+            page.fill("#schema-pattern", "/");
+            page.selectOption("#schema-target", "response");
+            page.fill("#schema-json", "{\"type\":\"object\",\"required\":[\"missing\"]}");
+            page.click("#schema-save");
+            page.click("#settings-back");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'tint-test', url: '/', label: 't', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 'th',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: {}, responseHeaders: {},
+                      requestBody: '', responseBody: '{"present":1}'
+                    })
+                    """);
+            page.waitForSelector("#detail-bodies .cm-body-invalid",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.querySelector("#detail-bodies .cm-body-invalid")).isNotNull();
+        }
+    }
 }
