@@ -937,7 +937,7 @@ function renderTraceLinks() {
     }
     el.traceList.innerHTML = state.traceLinks.map((t, i) =>
         '<div class="schema-rule" data-trace="' + i + '">'
-        + '<span class="trace-header-label">' + esc(t.header) + '</span>'
+        + '<span class="validation-target">' + esc(t.header) + '</span>'
         + '<code>' + esc(t.urlTemplate) + '</code>'
         + '<button type="button" class="mini trace-delete" data-trace="' + i + '">Delete</button>'
         + '</div>').join('');

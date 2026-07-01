@@ -922,7 +922,7 @@ class TrafficInspectorE2EIT {
             page.fill("#trace-header", "x-request-id");
             page.fill("#trace-url", "https://sfx.test/trace/{value}");
             page.click("#trace-save");
-            assertThat(page.innerText("#trace-list")).contains("x-request-id");
+            assertThat(page.innerText("#trace-list")).containsIgnoringCase("x-request-id");
             page.click("#settings-back");
 
             page.evaluate("""
