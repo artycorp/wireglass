@@ -893,4 +893,15 @@ class TrafficInspectorE2EIT {
             assertThat(a.getAttribute("target")).isEqualTo("_blank");
         }
     }
+
+    @Test
+    void xmlBodiesArePrettyPrinted() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            String pretty = (String) page.evaluate(
+                    "() => prettyXml('<a><b>1</b><c>2</c></a>')");
+            assertThat(pretty).contains("\n");
+            assertThat(pretty).contains("  <b>1</b>");
+        }
+    }
 }

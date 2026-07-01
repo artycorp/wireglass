@@ -444,6 +444,27 @@ function humanSize(n) {
     return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+// Re-indent XML/HTML by inserting newlines between tags and tracking depth. Pure string transform:
+// self-closing tags, comments, and processing instructions do not change depth. Best-effort — it
+// never throws, so malformed markup falls back to a light reflow of whatever it produced.
+function prettyXml(str) {
+    const withBreaks = String(str).replace(/>\s*</g, '>\n<');
+    const lines = withBreaks.split('\n');
+    let depth = 0;
+    const out = [];
+    for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+        const isClose = /^<\//.test(line);
+        const isSelf = /\/>$/.test(line) || /^<[!?]/.test(line);
+        const opensAndCloses = /^<[^!?][^>]*>.*<\/[^>]+>$/.test(line);
+        if (isClose) depth = Math.max(0, depth - 1);
+        out.push('  '.repeat(depth) + line);
+        if (!isClose && !isSelf && !opensAndCloses && /^<[^!?]/.test(line)) depth++;
+    }
+    return out.join('\n');
+}
+
 // Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
 // as-is; anything else returns null so the caller falls back to a plain <pre>.
 function detectLang(body) {
@@ -453,7 +474,7 @@ function detectLang(body) {
         catch (e) { /* not valid JSON */ }
     }
     if (t.startsWith('<')) {
-        return { code: body, mode: { name: 'xml', htmlMode: true } };
+        return { code: prettyXml(body), mode: { name: 'xml', htmlMode: true } };
     }
     return null;
 }
