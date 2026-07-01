@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record CapturedPacket(
         UUID id,
+        UUID runId,
         PacketType type,
         OffsetDateTime timestamp,
         String threadName,
@@ -28,4 +29,32 @@ public record CapturedPacket(
         String failureMessage,
         int groupThreads,
         int allThreads) {
+
+    public CapturedPacket withRunId(UUID runId) {
+        return new CapturedPacket(
+                id,
+                runId,
+                type,
+                timestamp,
+                threadName,
+                label,
+                method,
+                url,
+                requestHeaders,
+                requestBody,
+                status,
+                statusMessage,
+                responseHeaders,
+                responseBody,
+                responseContentType,
+                bodyBinary,
+                bodyTruncated,
+                elapsedMs,
+                latencyMs,
+                connectMs,
+                success,
+                failureMessage,
+                groupThreads,
+                allThreads);
+    }
 }

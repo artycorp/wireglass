@@ -2,6 +2,7 @@ package com.artembelikov.listview.capture;
 
 import com.artembelikov.listview.client.capture.PacketSink;
 import com.artembelikov.listview.client.dto.CapturedPacket;
+import java.util.UUID;
 
 /**
  * Sink used by the web app's own (in-process) test runner: packets go straight to the bus with no
@@ -10,9 +11,11 @@ import com.artembelikov.listview.client.dto.CapturedPacket;
 public class InProcessSink implements PacketSink {
 
     private final PacketBus bus;
+    private final UUID runId;
 
-    public InProcessSink(PacketBus bus) {
+    public InProcessSink(PacketBus bus, UUID runId) {
         this.bus = bus;
+        this.runId = runId;
     }
 
     @Override
@@ -22,7 +25,7 @@ public class InProcessSink implements PacketSink {
 
     @Override
     public void publish(CapturedPacket packet) {
-        bus.publish(packet);
+        bus.publish(packet.runId() == null ? packet.withRunId(runId) : packet);
     }
 
     @Override

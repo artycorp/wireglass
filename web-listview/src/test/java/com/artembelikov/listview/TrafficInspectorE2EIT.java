@@ -157,6 +157,51 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void packetsExposeRunIdInHistoryAndLiveStream() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+
+            String runId = (String) page.evaluate("() => state.packets[0] && state.packets[0].runId");
+            assertThat(runId).isNotBlank();
+        }
+    }
+
+    @Test
+    void runListShowsMultipleRunsAndFiltersTableBySelection() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.waitForSelector("#run-list .run-chip",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            String firstRunId = page.getAttribute("#run-list .run-chip", "data-run-id");
+            int firstCount = rowCount(page);
+            assertThat(firstRunId).isNotBlank();
+            assertThat(firstCount).isGreaterThan(0);
+
+            startRun(page, "POST", "{\"n\":2}", "application/json");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#run-list .run-chip').length >= 2",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.locator("#run-list .run-chip").count()).isGreaterThanOrEqualTo(2);
+
+            page.click("#run-list .run-chip[data-run-id='" + firstRunId + "']");
+            page.waitForFunction(
+                    "(expected) => document.querySelectorAll('#packet-body tr.pkt').length === expected",
+                    firstCount,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            int filteredCount = rowCount(page);
+            assertThat(filteredCount).isEqualTo(firstCount);
+        }
+    }
+
+    @Test
     void selectingPacketShowsRequestAndResponseBodies() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
@@ -636,6 +681,38 @@ class TrafficInspectorE2EIT {
             int rows = waitForRowCount(page, 2);
             assertThat(rows).isGreaterThanOrEqualTo(2);
             assertThat(page.innerText("#packet-body")).contains("GET").contains("200");
+
+            runner.join(TEST_TIMEOUT.toMillis());
+        }
+    }
+
+    @Test
+    void externalClientGeneratesRunIdWhenNotProvided() throws Exception {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.waitForFunction(
+                    "() => window.EventSource && true",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            Thread runner = new Thread(() -> {
+                try {
+                    JmeterDsl.testPlan(
+                            JmeterDsl.threadGroup(1, 1, JmeterDsl.httpSampler(echoUrl("/"))),
+                            new TrafficCaptureClient("http://localhost:" + appPort)
+                    ).run();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, "external-jmeter-dsl-run-id");
+            runner.setDaemon(true);
+            runner.start();
+
+            waitForRowCount(page, 1);
+            page.waitForSelector("#run-list .run-chip",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat((String) page.evaluate("() => state.packets[0] && state.packets[0].runId"))
+                    .isNotBlank();
 
             runner.join(TEST_TIMEOUT.toMillis());
         }

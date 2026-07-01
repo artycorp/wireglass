@@ -2,9 +2,11 @@
 
 const state = {
     packets: [],          // all received packets
+    runs: [],
     seen: new Set(),      // packet ids already added (dedupe history vs. live SSE)
     selectedId: null,
-    currentRunId: null,
+    selectedRunId: null,
+    activeRunId: null,
     filter: {
         text: '',
         searchBodies: false,
@@ -43,6 +45,8 @@ const el = {
     demo: document.getElementById('demo-btn'),
     stop: document.getElementById('stop-btn'),
     clear: document.getElementById('clear-btn'),
+    runAll: document.getElementById('run-all'),
+    runList: document.getElementById('run-list'),
     status: document.getElementById('run-status'),
     tbody: document.getElementById('packet-body'),
     count: document.getElementById('packet-count'),
@@ -123,6 +127,9 @@ function ensureStream() {
 }
 
 function addPacket(packet) {
+    if (packet && !packet.runId) {
+        packet.runId = state.activeRunId || state.selectedRunId || null;
+    }
     if (packet && packet.id != null && state.seen.has(packet.id)) {
         return; // already shown (history loaded after a live SSE delivery, or vice versa)
     }
@@ -130,9 +137,14 @@ function addPacket(packet) {
         state.seen.add(packet.id);
     }
     state.packets.push(packet);
+    upsertRunFromPacket(packet);
     if (packet && packet.elapsedMs > state.maxElapsed) {
         state.maxElapsed = packet.elapsedMs;
         rescaleWaterfalls();
+    }
+    if (state.selectedRunId && packet.runId !== state.selectedRunId) {
+        updateCount(visiblePackets().filter(matchesFilter).length);
+        return;
     }
     if (state.sort.key) {
         scheduleRebuild();  // sorted view: a plain append would land out of order
@@ -143,6 +155,12 @@ function addPacket(packet) {
         appendRow(packet);
     }
     updateCount(el.tbody.querySelectorAll('tr.pkt').length);
+}
+
+function upsertRunFromPacket(packet) {
+    if (!packet || !packet.runId) return;
+    if (state.runs.some(run => run.id === packet.runId)) return;
+    loadRuns();
 }
 
 // Coalesce bursty SSE updates into one re-render per frame while a sort is active.
@@ -157,8 +175,13 @@ function scheduleRebuild() {
 // before the page was opened). Live packets arrive afterwards via SSE and are deduped by id.
 async function loadRecent() {
     try {
-        const r = await fetch('/api/packets?limit=500');
+        const suffix = state.selectedRunId
+            ? '?runId=' + encodeURIComponent(state.selectedRunId) + '&limit=500'
+            : '?limit=500';
+        const r = await fetch('/api/packets' + suffix);
         if (!r.ok) return;
+        state.packets = [];
+        state.seen = new Set();
         const recent = await r.json();
         for (const p of recent) {
             addPacket(p);
@@ -167,6 +190,44 @@ async function loadRecent() {
     } catch (e) {
         // ignore: live SSE will still carry new packets
     }
+}
+
+async function loadRuns() {
+    try {
+        const r = await fetch('/api/runs');
+        if (!r.ok) return;
+        state.runs = await r.json();
+        renderRunList();
+    } catch (e) {
+        // ignore; packets still render without summaries
+    }
+}
+
+function renderRunList() {
+    if (!el.runList || !el.runAll) return;
+    el.runAll.classList.toggle('active', !state.selectedRunId);
+    el.runList.innerHTML = state.runs.map(run =>
+        '<button type="button" class="run-chip' + (run.id === state.selectedRunId ? ' active' : '') + '"'
+        + ' data-run-id="' + esc(run.id) + '">'
+        + '<span class="src">' + esc(run.source) + '</span> '
+        + '<span class="state">' + esc(run.state) + '</span>'
+        + '</button>').join('');
+}
+
+function visiblePackets() {
+    return state.selectedRunId
+        ? state.packets.filter(packet => packet.runId === state.selectedRunId)
+        : state.packets;
+}
+
+async function selectRun(runId) {
+    state.selectedRunId = runId || null;
+    state.selectedId = null;
+    renderRunList();
+    el.tbody.innerHTML = '';
+    renderDetail(null);
+    closeDetail();
+    await loadRecent();
 }
 
 // Facets combine with AND across groups; within the status group selected classes are OR'd.
@@ -1235,28 +1296,43 @@ el.form.addEventListener('submit', async (ev) => {
 el.demo.addEventListener('click', async () => {
     ensureStream();
     const r = await fetch('/api/runs/demo', { method: 'POST' });
-    afterStart(await r.json());
+    await afterStart(await r.json());
     setRunPanel(false);
 });
 
 el.stop.addEventListener('click', async () => {
-    if (!state.currentRunId) return;
-    await fetch('/api/runs/' + state.currentRunId + '/stop', { method: 'POST' });
+    if (!state.activeRunId) return;
+    await fetch('/api/runs/' + state.activeRunId + '/stop', { method: 'POST' });
     setStatus('stopping…');
 });
 
 el.clear.addEventListener('click', async () => {
     if (!window.confirm('Clear all captured packets?')) return;
     state.packets = [];
+    state.runs = [];
     state.seen = new Set();
     state.selectedId = null;
+    state.selectedRunId = null;
+    state.activeRunId = null;
     state.maxElapsed = 1;
     el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
+    renderRunList();
     renderDetail(null);
     closeDetail();
     try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
 });
+
+if (el.runAll) {
+    el.runAll.addEventListener('click', () => { selectRun(null); });
+}
+if (el.runList) {
+    el.runList.addEventListener('click', (ev) => {
+        const bt = ev.target.closest('.run-chip[data-run-id]');
+        if (!bt) return;
+        selectRun(bt.dataset.runId);
+    });
+}
 
 el.settingsToggle.addEventListener('click', () => {
     if (el.settingsView.hidden) {
@@ -1542,11 +1618,20 @@ async function startRun(payload) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    afterStart(await r.json());
+    await afterStart(await r.json());
 }
 
-function afterStart(status) {
-    state.currentRunId = status.id;
+async function afterStart(status) {
+    state.activeRunId = status.id;
+    state.selectedRunId = status.id;
+    for (const packet of state.packets) {
+        if (!packet.runId) {
+            packet.runId = status.id;
+        }
+    }
+    await loadRuns();
+    renderRunList();
+    await loadRecent();
     setStatus('running…', 'run');
     el.stop.disabled = false;
     pollStatus(status.id);
@@ -1562,6 +1647,11 @@ function pollStatus(id) {
             return;
         }
         clearInterval(handle);
+        if (state.activeRunId === id) state.activeRunId = null;
+        await loadRuns();
+        if (!state.selectedRunId || state.selectedRunId === id) {
+            await loadRecent();
+        }
         el.stop.disabled = true;
         if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok');
         else if (s.state === 'FAILED') setStatus('failed', 'err');
@@ -1737,14 +1827,14 @@ function loadFilters() {
 
 function rebuildList() {
     el.tbody.innerHTML = '';
-    let rows = state.packets.filter(matchesFilter);
+    let rows = visiblePackets().filter(matchesFilter);
     if (state.sort.key) {
         const dir = state.sort.dir === 'desc' ? -1 : 1;
         rows = rows.slice().sort((a, b) => comparePackets(a, b, state.sort.key) * dir);
     }
     for (const p of rows) appendRow(p);
     updateCount(rows.length);
-    if (rows.length === 0 && state.packets.length > 0) showEmptyRow();
+    if (rows.length === 0 && visiblePackets().length > 0) showEmptyRow();
 }
 
 function comparePackets(a, b, key) {
@@ -1790,7 +1880,7 @@ function updateSortIndicators() {
 }
 
 function updateCount(shown) {
-    const total = state.packets.length;
+    const total = visiblePackets().length;
     el.count.textContent = (shown === total) ? total + ' packets' : shown + ' / ' + total + ' packets';
 }
 
@@ -1828,5 +1918,6 @@ if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(
 loadDashboardLinks();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
+loadRuns();
 // backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)
 loadRecent();

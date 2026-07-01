@@ -12,11 +12,14 @@ jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-m
 
 ## Build / run / test  (IMPORTANT — non-obvious)
 - Build everything (from repo root): `mvn verify` — the reactor builds the client before the web app.
-- Run the app: `mvn spring-boot:run -pl web-listview` (or `./web-listview/run.sh`).
+- Run the app: `mvn -pl web-listview -am spring-boot:run` (or `./web-listview/run.sh`).
 - YOU MUST NOT use `java -jar target/*.jar`: the Spring Boot fat jar fails with
   `URI is not hierarchical`. JMeter's embedded engine resolves each test-element class' jar via
   `new File(codeSource.toURI())`, which breaks on nested `BOOT-INF/lib` URIs. Use an exploded
   classpath (`spring-boot:run` / `run.sh`) — that's also why the e2e tests use `@SpringBootTest`.
+- The `-am` on `spring-boot:run` is required after shared-client changes: otherwise Maven can run the
+  app with a stale `web-listview-client` from `~/.m2`, leading to runtime `NoSuchMethodError` and
+  "run started but no packets appeared" behavior.
 - E2E tests (Playwright/Java, `*IT.java`, run by Failsafe): `mvn verify` auto-installs chromium at
   `pre-integration-test`. Skip tests: `-DskipITs=true`; skip the browser download:
   `-DskipPlaywrightInstall=true`.

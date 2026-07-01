@@ -50,10 +50,17 @@ public class PacketRepository {
     }
 
     public List<CapturedPacket> recent(int limit) {
+        return recent(null, limit);
+    }
+
+    public List<CapturedPacket> recent(UUID runId, int limit) {
         int n = Math.max(0, limit);
         lock.lock();
         try {
             List<CapturedPacket> snapshot = new ArrayList<>(ring);
+            if (runId != null) {
+                snapshot.removeIf(packet -> !runId.equals(packet.runId()));
+            }
             if (n == 0 || n >= snapshot.size()) {
                 return snapshot;
             }

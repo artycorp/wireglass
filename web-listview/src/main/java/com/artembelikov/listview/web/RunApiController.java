@@ -1,8 +1,11 @@
 package com.artembelikov.listview.web;
 
 import com.artembelikov.listview.capture.TestRunService;
+import com.artembelikov.listview.dto.RunSummary;
 import com.artembelikov.listview.dto.RunRequest;
 import com.artembelikov.listview.dto.RunStatus;
+import com.artembelikov.listview.store.RunRepository;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -18,10 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RunApiController {
 
     private final TestRunService runService;
+    private final RunRepository runRepository;
 
     @Autowired
-    public RunApiController(TestRunService runService) {
+    public RunApiController(TestRunService runService, RunRepository runRepository) {
         this.runService = runService;
+        this.runRepository = runRepository;
     }
 
     @PostMapping
@@ -32,6 +37,11 @@ public class RunApiController {
     @PostMapping("/demo")
     public RunStatus startDemo() {
         return runService.startDemo();
+    }
+
+    @GetMapping
+    public List<RunSummary> list() {
+        return runRepository.recent();
     }
 
     @PostMapping("/{id}/stop")

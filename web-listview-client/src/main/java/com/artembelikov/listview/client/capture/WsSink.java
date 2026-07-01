@@ -5,6 +5,7 @@ import com.artembelikov.listview.client.json.Json;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.enums.ReadyState;
@@ -22,8 +23,14 @@ public class WsSink implements PacketSink {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
 
     private final WebSocketClient client;
+    private final UUID runId;
 
     public WsSink(String serverUrl) {
+        this(serverUrl, null);
+    }
+
+    public WsSink(String serverUrl, UUID runId) {
+        this.runId = runId == null ? UUID.randomUUID() : runId;
         try {
             this.client = new WebSocketClient(new URI(toWsUrl(serverUrl))) {
                 @Override
@@ -64,7 +71,7 @@ public class WsSink implements PacketSink {
         }
         if (client.isOpen()) {
             try {
-                client.send(Json.write(packet));
+                client.send(Json.write(packet.runId() == null ? packet.withRunId(runId) : packet));
             } catch (RuntimeException e) {
                 LOG.debug("WS send failed: {}", e.toString());
             }

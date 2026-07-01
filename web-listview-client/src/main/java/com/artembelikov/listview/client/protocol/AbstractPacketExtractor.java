@@ -41,6 +41,7 @@ public abstract class AbstractPacketExtractor implements PacketExtractor {
 
         return new CapturedPacket(
                 UUID.randomUUID(),
+                null,
                 supportedType(),
                 OffsetDateTime.ofInstant(Instant.ofEpochMilli(result.getStartTime()), ZoneOffset.UTC),
                 nullToEmpty(result.getThreadName()),
