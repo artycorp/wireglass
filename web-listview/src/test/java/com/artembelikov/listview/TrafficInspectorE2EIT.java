@@ -713,6 +713,29 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void dashboardUrlTemplateHighlightsVariablesInPreviewAndList() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "dashboards");
+
+            String template = "https://GRAFANA/d/UID?var-host={host}&from={fromMs}&to={toMs}";
+            page.fill("#dash-name", "Grafana vars");
+            page.fill("#dash-url", template);
+
+            assertThat(page.innerText("#dash-url-preview")).contains("https://GRAFANA").contains("{host}");
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#dash-url-preview .template-var').length")).isEqualTo(3);
+
+            page.click("#dash-save");
+            assertThat(page.innerText("#dash-list")).contains("Grafana vars");
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#dash-list .template-var').length")).isEqualTo(3);
+            assertThat(page.getAttribute("#dash-list .template-var[data-var='host']", "title"))
+                    .contains("packet host");
+        }
+    }
+
+    @Test
     void dashboardUrlTemplateSubstitutesEncodesAndValidatesScheme() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

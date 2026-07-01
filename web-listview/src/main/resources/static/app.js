@@ -73,6 +73,7 @@ const el = {
     dashScope: document.getElementById('dash-scope'),
     dashPreset: document.getElementById('dash-preset'),
     dashUrl: document.getElementById('dash-url'),
+    dashUrlPreview: document.getElementById('dash-url-preview'),
     dashMatch: document.getElementById('dash-match'),
     dashWindow: document.getElementById('dash-window'),
     dashSave: document.getElementById('dash-save'),
@@ -603,6 +604,53 @@ function applyTemplate(template, vars) {
         Object.prototype.hasOwnProperty.call(vars, name) ? encodeURIComponent(vars[name]) : m);
 }
 
+const DASHBOARD_VAR_HINTS = {
+    host: 'packet host',
+    port: 'packet port',
+    scheme: 'packet URL scheme',
+    path: 'packet URL path',
+    query: 'packet URL query',
+    method: 'packet method',
+    status: 'packet status',
+    label: 'packet label',
+    type: 'packet type',
+    thread: 'packet thread',
+    fromMs: 'window start ms',
+    toMs: 'window end ms',
+    fromSec: 'window start seconds',
+    toSec: 'window end seconds',
+    fromIso: 'window start ISO',
+    toIso: 'window end ISO',
+    timestamp: 'packet timestamp',
+    epochMs: 'packet timestamp ms',
+    epochSec: 'packet timestamp seconds',
+};
+
+function renderTemplatePreview(template) {
+    const text = String(template || '').trim();
+    if (!text) return '<span class="template-empty">Variables like {host}, {fromMs}, and {toMs} will be highlighted here.</span>';
+    const parts = [];
+    const placeholderPattern = /\{(\w+)}/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = placeholderPattern.exec(text)) !== null) {
+        if (match.index > lastIndex) parts.push(esc(text.slice(lastIndex, match.index)));
+        const name = match[1];
+        const known = Object.prototype.hasOwnProperty.call(DASHBOARD_VAR_HINTS, name);
+        const title = known ? DASHBOARD_VAR_HINTS[name] : 'custom placeholder';
+        parts.push('<span class="template-var' + (known ? '' : ' custom') + '" data-var="' + esc(name)
+            + '" title="' + esc(title) + '">' + esc(match[0]) + '</span>');
+        lastIndex = placeholderPattern.lastIndex;
+    }
+    if (lastIndex < text.length) parts.push(esc(text.slice(lastIndex)));
+    return parts.join('');
+}
+
+function updateDashboardTemplatePreview() {
+    if (!el.dashUrlPreview) return;
+    el.dashUrlPreview.innerHTML = renderTemplatePreview(el.dashUrl.value);
+}
+
 function buildDashboardUrl(template, packet) {
     return applyTemplate(template, dashboardVars(packet));
 }
@@ -668,7 +716,7 @@ function renderDashboardList() {
         '<div class="schema-rule" data-id="' + esc(link.id) + '">'
         + '<span class="validation-target">' + esc(link.scope) + '</span>'
         + '<strong>' + esc(link.name) + '</strong>'
-        + '<code>' + esc(link.urlTemplate) + '</code>'
+        + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
         + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>'
         + '</div>').join('');
 }
@@ -1056,9 +1104,10 @@ el.schemaList.addEventListener('click', (ev) => {
 // ---- dashboard links panel ----
 el.dashPreset.addEventListener('change', () => {
     const tpl = DASHBOARD_PRESETS[el.dashPreset.value];
-    if (tpl) { el.dashUrl.value = tpl; el.dashSystem.value = el.dashPreset.value; }
+    if (tpl) { el.dashUrl.value = tpl; el.dashSystem.value = el.dashPreset.value; updateDashboardTemplatePreview(); }
     el.dashPreset.value = '';
 });
+el.dashUrl.addEventListener('input', updateDashboardTemplatePreview);
 el.dashWindow.addEventListener('change', () => {
     const min = Math.max(1, Number(el.dashWindow.value) || 5);
     localStorage.setItem(DASHBOARD_WINDOW_KEY, String(min * 60000));
@@ -1530,6 +1579,7 @@ loadFilters();
 renderActiveFilters();
 loadSettingsTab();
 loadLanguage();
+updateDashboardTemplatePreview();
 loadSchemaRules();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));
