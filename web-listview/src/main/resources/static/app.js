@@ -634,11 +634,30 @@ function applyValidationMarks(cm, b) {
     const marked = new Set();
     for (const error of b.validationErrors) {
         if (marked.has(error.path)) continue;
-        const pos = findJsonPathPosition(b.code, error.path);
-        if (!pos) continue;
         marked.add(error.path);
-        cm.markText(pos.from, pos.to, { className: 'cm-schema-error', title: error.message });
+        const pos = findJsonPathPosition(b.code, error.path);
+        if (pos) {
+            cm.markText(pos.from, pos.to, { className: 'cm-schema-error', title: error.message });
+            continue;
+        }
+        // The field itself isn't in the body (a missing required field) — there's nothing to
+        // underline, so drop a marker on the parent object's line instead.
+        markMissingField(cm, b.code, error);
     }
+}
+
+function markMissingField(cm, code, error) {
+    const parts = jsonPathParts(error.path);
+    const key = parts[parts.length - 1];
+    if (typeof key !== 'string') return;
+    const parentPath = error.path.slice(0, error.path.length - ('.' + key).length);
+    const parentPos = findJsonPathPosition(code, parentPath);
+    const line = parentPos ? parentPos.from.line : 0;
+    const marker = document.createElement('span');
+    marker.className = 'cm-schema-missing';
+    marker.textContent = '⚠ missing "' + key + '"';
+    marker.title = error.message;
+    cm.addLineWidget(line, marker, { coverGutter: false, noHScroll: true });
 }
 
 function findJsonPathPosition(code, path) {
