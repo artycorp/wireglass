@@ -149,3 +149,7 @@ shows request/response bodies, and the filter hides non-matching packets.
 `src/main/resources/application.yml` exposes:
 - `app.listview.ring-buffer-size` (default 5000) — in-memory packet history cap
 - `app.listview.max-body-bytes` (default 256 KiB) — per-packet body truncation
+
+## Server-provided rules and dashboards
+
+The app can load read-only JSON Schema rules and dashboard links from a server-hosted JSON file configured by `app.listview.remote-config-url`. The expected file format is documented in [`docs/server-config-format.md`](docs/server-config-format.md).

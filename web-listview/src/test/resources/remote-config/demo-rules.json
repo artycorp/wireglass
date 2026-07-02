@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "schemas": [
+    {
+      "id": "server-response-required-id",
+      "name": "Server response requires id",
+      "pattern": "/",
+      "target": "response",
+      "schema": {
+        "type": "object",
+        "required": ["id"]
+      }
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "server-grafana-local",
+      "name": "Server Grafana",
+      "system": "grafana",
+      "scope": "packet",
+      "urlTemplate": "http://localhost:3000/d/http?host={host}&from={fromMs}&to={toMs}",
+      "match": "127.0.0.1"
+    }
+  ]
+}
