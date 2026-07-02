@@ -22,3 +22,5 @@ app:
     ring-buffer-size: 5000
     # Cap stored body bytes per packet to avoid blowing memory on huge responses
     max-body-bytes: 262144   # 256 KiB
+    # Optional URL or classpath resource for read-only JSON Schema and dashboard definitions.
+    remote-config-url:

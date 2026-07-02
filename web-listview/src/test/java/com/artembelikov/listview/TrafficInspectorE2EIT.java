@@ -34,7 +34,12 @@ import us.abstracta.jmeter.javadsl.JmeterDsl;
  *
  * Run with: {@code mvn verify}  (installs the chromium browser automatically, then runs the tests).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        // Points at the Task-1 fixture so loadsServerSchemasAndDashboards() can exercise the
+        // server-config loading path; harmless for every other test, which never calls
+        // /api/config/rules or renders anything from it.
+        "app.listview.remote-config-url=classpath:/remote-config/demo-rules.json"
+})
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class TrafficInspectorE2EIT {
 
@@ -317,6 +322,27 @@ class TrafficInspectorE2EIT {
             assertThat(validation).containsIgnoringCase("response").contains("/");
             assertThat(validation).contains("$.id").contains("required");
             assertThat(validation).contains("$.method").contains("expected number");
+        }
+    }
+
+    @Test
+    void loadsServerSchemasAndDashboards() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            openSettingsTab(page, "schema");
+            page.waitForFunction(
+                    "() => document.querySelector('#schema-list').textContent.includes('Server response requires id')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.innerText("#schema-list")).contains("Server response requires id").contains("server");
+
+            page.click(".settings-tab[data-settings-tab='dashboards']");
+            page.waitForFunction(
+                    "() => document.querySelector('#dash-list').textContent.includes('Server Grafana')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.innerText("#dash-list")).contains("Server Grafana").contains("server");
         }
     }
 
