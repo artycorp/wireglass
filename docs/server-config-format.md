@@ -1,6 +1,17 @@
 # Server Config Format
 
-Wireglass can load validation rules and dashboard links from a server-hosted JSON file. The file is read-only from the browser's point of view: users can disable individual server-provided items locally, but they cannot delete or edit them in the app.
+Wireglass can load validation rules and dashboard links from a server-hosted JSON file (configured
+once, backend-side, via `app.listview.remote-config-url`), or ad hoc from any `http(s)://` URL a
+user pastes into the JSON Schema panel's "Load rules from URL" field (fetched client-side, subject
+to that URL's CORS policy). Both use this same file format.
+
+The file itself is never mutated by the app. Users can disable individual items locally without
+deleting them, and — for schema rules only — edit one without touching the cached copy: editing
+creates a local override keyed by the rule's `id`, shown with a yellow "edited" highlight, with a
+"Reset" action to drop the override and fall back to the cached version. Reloading or refreshing a
+source only replaces its own raw cache; it never discards overrides or disabled state, since both
+are stored separately and keyed by `id`. Dashboard links loaded from a server config stay
+disable-only (no override), matching the read-only contract for that panel.
 
 ## Example
 

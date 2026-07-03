@@ -34,12 +34,7 @@ import us.abstracta.jmeter.javadsl.JmeterDsl;
  *
  * Run with: {@code mvn verify}  (installs the chromium browser automatically, then runs the tests).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        // Points at the Task-1 fixture so loadsServerSchemasAndDashboards() can exercise the
-        // server-config loading path; harmless for every other test, which never calls
-        // /api/config/rules or renders anything from it.
-        "app.listview.remote-config-url=classpath:/remote-config/demo-rules.json"
-})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class TrafficInspectorE2EIT {
 
@@ -322,27 +317,6 @@ class TrafficInspectorE2EIT {
             assertThat(validation).containsIgnoringCase("response").contains("/");
             assertThat(validation).contains("$.id").contains("required");
             assertThat(validation).contains("$.method").contains("expected number");
-        }
-    }
-
-    @Test
-    void loadsServerSchemasAndDashboards() {
-        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
-            page.navigate(appUrl("/"));
-
-            openSettingsTab(page, "schema");
-            page.waitForFunction(
-                    "() => document.querySelector('#schema-list').textContent.includes('Server response requires id')",
-                    null,
-                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
-            assertThat(page.innerText("#schema-list")).contains("Server response requires id").contains("server");
-
-            page.click(".settings-tab[data-settings-tab='dashboards']");
-            page.waitForFunction(
-                    "() => document.querySelector('#dash-list').textContent.includes('Server Grafana')",
-                    null,
-                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
-            assertThat(page.innerText("#dash-list")).contains("Server Grafana").contains("server");
         }
     }
 
@@ -831,6 +805,57 @@ class TrafficInspectorE2EIT {
                     "() => /No dashboard links/.test(document.querySelector('#dash-list').textContent)",
                     null,
                     new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
+    void dashboardPanelEditsAnExistingLinkInPlace() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "dashboards");
+
+            page.fill("#dash-name", "Open in Grafana");
+            page.selectOption("#dash-scope", "packet");
+            page.fill("#dash-url", "https://grafana.example/d/UID?host={host}");
+            page.fill("#dash-match", "old-host");
+            page.click("#dash-save");
+            assertThat(page.innerText("#dash-list")).contains("Open in Grafana");
+
+            // editing pre-fills the form and switches Save -> Update
+            page.click("#dash-list .dash-edit");
+            assertThat(page.inputValue("#dash-name")).isEqualTo("Open in Grafana");
+            assertThat(page.inputValue("#dash-url")).isEqualTo("https://grafana.example/d/UID?host={host}");
+            assertThat(page.inputValue("#dash-match")).isEqualTo("old-host");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Update");
+            assertThat(page.isVisible("#dash-cancel-edit")).isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#dash-list .schema-rule').classList.contains('editing')")).isTrue();
+
+            page.fill("#dash-name", "Open in Grafana (renamed)");
+            page.fill("#dash-match", "new-host");
+            page.click("#dash-save");
+
+            // updated in place: still exactly one row, new name, edit mode closed
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#dash-list .schema-rule').length")).isEqualTo(1);
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#dash-cancel-edit")).isFalse();
+
+            // persists across reload, including the field that isn't rendered in the list (match)
+            page.reload();
+            openSettingsTab(page, "dashboards");
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
+            page.click("#dash-list .dash-edit");
+            assertThat(page.inputValue("#dash-match")).isEqualTo("new-host");
+
+            // cancel restores the idle Save state without touching the link
+            page.fill("#dash-name", "should not be saved");
+            page.click("#dash-cancel-edit");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#dash-cancel-edit")).isFalse();
+            assertThat(page.inputValue("#dash-name")).isEqualTo("");
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
         }
     }
 

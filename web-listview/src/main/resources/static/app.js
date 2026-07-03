@@ -20,9 +20,18 @@ const state = {
     maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
     sort: { key: null, dir: 'asc' },  // null key = insertion order
     detailCollapsed: false,
-    schemaRules: [],
+    serverSchemaRules: [],
+    localSchemaRules: [],
+    urlSchemaSources: [],   // [{url, fetchedAt, rules:[...]}] loaded ad hoc from a URL repository
+    schemaOverrides: {},    // id -> {name,pattern,target,schema} local edit of a server/url-sourced rule
+    schemaRules: [],        // effective (enabled, override-applied) list used by the validator
+    serverDashboardLinks: [],
+    localDashboardLinks: [],
     dashboardLinks: [],
+    disabledServerItems: new Set(),
     traceLinks: [],
+    editingDashLinkId: null,
+    editingSchemaRuleId: null,
     settingsTab: 'schema',
 };
 
@@ -66,12 +75,18 @@ const el = {
     schemaCount: document.getElementById('schema-count'),
     dashboardCount: document.getElementById('dashboard-count'),
     schemaPanel: document.getElementById('schema-panel'),
+    schemaName: document.getElementById('schema-name'),
     schemaPattern: document.getElementById('schema-pattern'),
     schemaTarget: document.getElementById('schema-target'),
     schemaJson: document.getElementById('schema-json'),
     schemaSave: document.getElementById('schema-save'),
+    schemaCancelEdit: document.getElementById('schema-cancel-edit'),
     schemaMessage: document.getElementById('schema-message'),
     schemaList: document.getElementById('schema-list'),
+    schemaRemoteUrl: document.getElementById('schema-remote-url'),
+    schemaRemoteLoad: document.getElementById('schema-remote-load'),
+    schemaRemoteMessage: document.getElementById('schema-remote-message'),
+    schemaRemoteSources: document.getElementById('schema-remote-sources'),
     dashboardPanel: document.getElementById('dashboard-panel'),
     dashName: document.getElementById('dash-name'),
     dashSystem: document.getElementById('dash-system'),
@@ -83,6 +98,7 @@ const el = {
     dashMatch: document.getElementById('dash-match'),
     dashWindow: document.getElementById('dash-window'),
     dashSave: document.getElementById('dash-save'),
+    dashCancelEdit: document.getElementById('dash-cancel-edit'),
     dashMessage: document.getElementById('dash-message'),
     dashList: document.getElementById('dash-list'),
     traceHeader: document.getElementById('trace-header'),
@@ -111,8 +127,215 @@ const el = {
 };
 
 const SCHEMA_RULES_KEY = 'listview.schemaRules';
+const SCHEMA_OVERRIDES_KEY = 'listview.schemaOverrides';
+const URL_SCHEMA_SOURCES_KEY = 'listview.urlSchemaSources';
 const SETTINGS_TAB_KEY = 'listview.settingsTab';
 const LANGUAGE_KEY = 'listview.language';
+const DISABLED_SERVER_ITEMS_KEY = 'listview.disabledServerItems';
+
+function serverItemKey(kind, id) {
+    return kind + ':' + String(id || '');
+}
+
+function isServerItemDisabled(kind, id) {
+    return state.disabledServerItems.has(serverItemKey(kind, id));
+}
+
+function loadDisabledServerItems() {
+    try {
+        const raw = localStorage.getItem(DISABLED_SERVER_ITEMS_KEY);
+        const ids = raw ? JSON.parse(raw) : [];
+        state.disabledServerItems = new Set(Array.isArray(ids) ? ids.map(String) : []);
+    } catch (e) {
+        state.disabledServerItems = new Set();
+    }
+}
+
+function saveDisabledServerItems() {
+    localStorage.setItem(DISABLED_SERVER_ITEMS_KEY, JSON.stringify([...state.disabledServerItems].sort()));
+}
+
+function toggleServerItem(kind, id) {
+    const key = serverItemKey(kind, id);
+    if (state.disabledServerItems.has(key)) state.disabledServerItems.delete(key);
+    else state.disabledServerItems.add(key);
+    saveDisabledServerItems();
+    rebuildEffectiveRules();
+}
+
+function normalizeSchemaRule(rule, source, sourceUrl) {
+    return {
+        id: String(rule.id || (String(Date.now()) + '-' + Math.random().toString(16).slice(2))),
+        name: rule.name ? String(rule.name) : '',
+        pattern: String(rule.pattern),
+        target: rule.target === 'request' ? 'request' : 'response',
+        schema: rule.schema,
+        source: source || 'local',
+        sourceUrl: sourceUrl || null,
+    };
+}
+
+function normalizeRemoteDashboardLink(link) {
+    return normalizeLink({
+        id: String(link.id),
+        name: String(link.name),
+        system: link.system || 'grafana',
+        scope: link.scope === 'global' ? 'global' : 'packet',
+        urlTemplate: String(link.urlTemplate),
+        match: link.match || '',
+        source: 'server',
+    });
+}
+
+// Raw (pre-override, pre-disable) rules from the server config endpoint and any ad hoc URL
+// sources, de-duplicated by id (a later source wins, matching load order).
+function allRemoteSchemaRules() {
+    const byId = new Map();
+    state.serverSchemaRules.forEach(r => byId.set(r.id, r));
+    state.urlSchemaSources.forEach(s => s.rules.forEach(r => byId.set(r.id, r)));
+    return [...byId.values()];
+}
+
+// A local edit of a server/url-sourced rule is stored separately from the cached raw rule so
+// that reloading/refreshing the source never silently discards it; `overridden: true` is what
+// the yellow highlight keys off (see renderSchemaRules).
+function effectiveSchemaRule(rule) {
+    const override = state.schemaOverrides[rule.id];
+    return override ? { ...rule, ...override, overridden: true } : rule;
+}
+
+function findSchemaRuleById(id) {
+    return allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules)
+        .find(r => r.id === id) || null;
+}
+
+function computeEffectiveSchemaRules() {
+    state.schemaRules = allRemoteSchemaRules()
+        .filter(r => !isServerItemDisabled('schema', r.id))
+        .map(effectiveSchemaRule)
+        .concat(state.localSchemaRules);
+}
+
+function computeEffectiveDashboardLinks() {
+    state.dashboardLinks = state.serverDashboardLinks
+        .filter(l => !isServerItemDisabled('dashboard', l.id))
+        .concat(state.localDashboardLinks);
+}
+
+function rebuildEffectiveRules() {
+    computeEffectiveSchemaRules();
+    computeEffectiveDashboardLinks();
+    renderSchemaRules();
+    refreshDashboardViews();
+    rerenderSelectedDetail();
+}
+
+// Loads the app-configured (single, backend-side) server config. Independent of the ad hoc
+// URL-source cache below — this always targets /api/config/rules.
+async function loadServerConfig() {
+    try {
+        const res = await fetch('/api/config/rules', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const config = await res.json();
+        state.serverSchemaRules = Array.isArray(config.schemas)
+            ? config.schemas.filter(r => r && r.id && r.pattern && r.target && r.schema)
+                .map(r => normalizeSchemaRule(r, 'server'))
+            : [];
+        state.serverDashboardLinks = Array.isArray(config.dashboards)
+            ? config.dashboards.filter(l => l && l.id && l.name && l.urlTemplate)
+                .map(normalizeRemoteDashboardLink)
+            : [];
+    } catch (e) {
+        state.serverSchemaRules = [];
+        state.serverDashboardLinks = [];
+        console.warn('[config] failed to load server rules', e);
+    }
+    rebuildEffectiveRules();
+}
+
+function loadSchemaOverrides() {
+    try {
+        const raw = localStorage.getItem(SCHEMA_OVERRIDES_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        state.schemaOverrides = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+        state.schemaOverrides = {};
+    }
+}
+
+function saveSchemaOverrides() {
+    localStorage.setItem(SCHEMA_OVERRIDES_KEY, JSON.stringify(state.schemaOverrides));
+}
+
+function loadUrlSchemaSources(render = true) {
+    try {
+        const raw = localStorage.getItem(URL_SCHEMA_SOURCES_KEY);
+        const stored = raw ? JSON.parse(raw) : [];
+        state.urlSchemaSources = Array.isArray(stored)
+            ? stored.filter(s => s && s.url).map(s => ({
+                url: String(s.url),
+                fetchedAt: s.fetchedAt || null,
+                rules: Array.isArray(s.rules)
+                    ? s.rules.filter(r => r && r.id && r.pattern && r.target && r.schema)
+                        .map(r => normalizeSchemaRule(r, 'url', s.url))
+                    : [],
+            }))
+            : [];
+    } catch (e) {
+        state.urlSchemaSources = [];
+    }
+    computeEffectiveSchemaRules();
+    if (render) renderSchemaRules();
+}
+
+function saveUrlSchemaSources() {
+    localStorage.setItem(URL_SCHEMA_SOURCES_KEY, JSON.stringify(state.urlSchemaSources));
+    computeEffectiveSchemaRules();
+    renderSchemaRules();
+    rerenderSelectedDetail();
+}
+
+// Fetched client-side (subject to the target's CORS policy) since this URL is picked by the
+// user at runtime, not known to the backend ahead of time. Same {version, schemas} shape as the
+// backend-configured server config (docs/server-config-format.md).
+async function loadSchemaRulesFromUrl(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const config = await res.json();
+    if (config.version !== 1) throw new Error('unsupported version ' + config.version);
+    const rules = Array.isArray(config.schemas)
+        ? config.schemas.filter(r => r && r.id && r.pattern && r.target && r.schema)
+        : [];
+    if (!rules.length) throw new Error('no valid schema rules found');
+    const withoutUrl = state.urlSchemaSources.filter(s => s.url !== url);
+    state.urlSchemaSources = withoutUrl.concat([{
+        url,
+        fetchedAt: Date.now(),
+        rules: rules.map(r => normalizeSchemaRule(r, 'url', url)),
+    }]);
+    saveUrlSchemaSources();
+}
+
+function setSchemaRemoteMessage(text, ok) {
+    if (!el.schemaRemoteMessage) return;
+    el.schemaRemoteMessage.textContent = text;
+    el.schemaRemoteMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function renderUrlSchemaSources() {
+    if (!el.schemaRemoteSources) return;
+    if (!state.urlSchemaSources.length) {
+        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">No URL sources loaded.</div>';
+        return;
+    }
+    el.schemaRemoteSources.innerHTML = state.urlSchemaSources.map(s =>
+        '<div class="schema-rule" data-url="' + esc(s.url) + '">'
+        + '<code>' + esc(s.url) + '</code>'
+        + '<span class="validation-target">' + s.rules.length + ' rule(s)</span>'
+        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">Refresh</button>'
+        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">Remove</button>'
+        + '</div>').join('');
+}
 
 function ensureStream() {
     if (state.es) return;
@@ -916,6 +1139,7 @@ function normalizeLink(l) {
         scope: l.scope === 'global' ? 'global' : 'packet',
         urlTemplate: String(l.urlTemplate),
         match: l.match || '',
+        source: l.source || 'local',
     };
 }
 
@@ -923,17 +1147,19 @@ function loadDashboardLinks(render = true) {
     try {
         const raw = localStorage.getItem(DASHBOARD_LINKS_KEY);
         const links = raw ? JSON.parse(raw) : [];
-        state.dashboardLinks = Array.isArray(links)
-            ? links.filter(l => l && l.name && l.urlTemplate).map(normalizeLink)
+        state.localDashboardLinks = Array.isArray(links)
+            ? links.filter(l => l && l.name && l.urlTemplate).map(l => normalizeLink({ ...l, source: 'local' }))
             : [];
     } catch (e) {
-        state.dashboardLinks = [];
+        state.localDashboardLinks = [];
     }
+    computeEffectiveDashboardLinks();
     if (render) refreshDashboardViews();
 }
 
 function saveDashboardLinks() {
-    localStorage.setItem(DASHBOARD_LINKS_KEY, JSON.stringify(state.dashboardLinks));
+    localStorage.setItem(DASHBOARD_LINKS_KEY, JSON.stringify(state.localDashboardLinks));
+    computeEffectiveDashboardLinks();
     refreshDashboardViews();
     rerenderSelectedDetail();
 }
@@ -946,23 +1172,65 @@ function refreshDashboardViews() {
 function renderDashboardList() {
     if (!el.dashList) return;
     updateSettingsCounts();
-    if (!state.dashboardLinks.length) {
+    const rows = state.serverDashboardLinks.concat(state.localDashboardLinks);
+    if (!rows.length) {
         el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
         return;
     }
-    el.dashList.innerHTML = state.dashboardLinks.map(link =>
-        '<div class="schema-rule" data-id="' + esc(link.id) + '">'
-        + dashboardSystemIconHtml(link.system)
-        + '<span class="validation-target">' + esc(link.scope) + '</span>'
-        + '<strong>' + esc(link.name) + '</strong>'
-        + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
-        + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>'
-        + '</div>').join('');
+    el.dashList.innerHTML = rows.map(link => {
+        const isServer = link.source === 'server';
+        const disabled = isServer && isServerItemDisabled('dashboard', link.id);
+        const classes = ['schema-rule'];
+        if (isServer) classes.push('server');
+        if (disabled) classes.push('disabled');
+        if (link.id === state.editingDashLinkId) classes.push('editing');
+        return '<div class="' + classes.join(' ') + '" data-id="' + esc(link.id) + '">'
+            + dashboardSystemIconHtml(link.system)
+            + '<span class="validation-target">' + esc(link.scope) + '</span>'
+            + (isServer ? '<span class="validation-target">server</span>' : '')
+            + '<strong>' + esc(link.name) + '</strong>'
+            + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
+            + (isServer
+                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
+                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">Edit</button>'
+                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>')
+            + '</div>';
+    }).join('');
 }
 
 function setDashMessage(text, ok) {
     el.dashMessage.textContent = text;
     el.dashMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function startEditDashboardLink(id) {
+    const link = state.localDashboardLinks.find(l => l.id === id);
+    if (!link) return;
+    state.editingDashLinkId = id;
+    el.dashName.value = link.name;
+    el.dashSystem.value = link.system;
+    el.dashScope.value = link.scope;
+    el.dashUrl.value = link.urlTemplate;
+    el.dashMatch.value = link.match || '';
+    updateDashboardSystemPreview();
+    updateDashboardTemplatePreview();
+    el.dashSave.textContent = 'Update';
+    el.dashCancelEdit.hidden = false;
+    setDashMessage('Editing "' + link.name + '"', true);
+    renderDashboardList();
+    el.dashName.focus();
+}
+
+function cancelEditDashboardLink() {
+    state.editingDashLinkId = null;
+    el.dashName.value = '';
+    el.dashUrl.value = '';
+    el.dashMatch.value = '';
+    updateDashboardTemplatePreview();
+    el.dashSave.textContent = 'Save';
+    el.dashCancelEdit.hidden = true;
+    setDashMessage('', true);
+    renderDashboardList();
 }
 
 function packetDashboardLinks(packet) {
@@ -1135,37 +1403,84 @@ function loadSchemaRules(render = true) {
     try {
         const raw = localStorage.getItem(SCHEMA_RULES_KEY);
         const rules = raw ? JSON.parse(raw) : [];
-        state.schemaRules = Array.isArray(rules) ? rules.filter(r => r && r.pattern && r.target && r.schema) : [];
+        state.localSchemaRules = Array.isArray(rules)
+            ? rules.filter(r => r && r.pattern && r.target && r.schema).map(r => normalizeSchemaRule(r, 'local'))
+            : [];
     } catch (e) {
-        state.schemaRules = [];
+        state.localSchemaRules = [];
     }
+    computeEffectiveSchemaRules();
     if (render) renderSchemaRules();
 }
 
 function saveSchemaRules() {
-    localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.schemaRules));
+    localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.localSchemaRules));
+    computeEffectiveSchemaRules();
     renderSchemaRules();
     rerenderSelectedDetail();
 }
 
 function renderSchemaRules() {
+    renderUrlSchemaSources();
     if (!el.schemaList) return;
     updateSettingsCounts();
-    if (!state.schemaRules.length) {
+    const rows = allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules);
+    if (!rows.length) {
         el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
         return;
     }
-    el.schemaList.innerHTML = state.schemaRules.map(rule =>
-        '<div class="schema-rule" data-id="' + esc(rule.id) + '">'
-        + '<span class="validation-target">' + esc(rule.target) + '</span>'
-        + '<code>' + esc(rule.pattern) + '</code>'
-        + '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>'
-        + '</div>').join('');
+    el.schemaList.innerHTML = rows.map(rule => {
+        const isRemote = rule.source !== 'local';
+        const disabled = isRemote && isServerItemDisabled('schema', rule.id);
+        const classes = ['schema-rule'];
+        if (isRemote) classes.push('server');
+        if (disabled) classes.push('disabled');
+        if (rule.overridden) classes.push('overridden');
+        if (rule.id === state.editingSchemaRuleId) classes.push('editing');
+        return '<div class="' + classes.join(' ') + '" data-id="' + esc(rule.id) + '">'
+            + '<span class="validation-target">' + esc(rule.target) + '</span>'
+            + (isRemote ? '<span class="validation-target">' + (rule.source === 'url' ? 'url' : 'server') + '</span>' : '')
+            + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
+            + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
+            + '<code>' + esc(rule.pattern) + '</code>'
+            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">Edit</button>'
+            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">Reset</button>' : '')
+            + (isRemote
+                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
+                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>')
+            + '</div>';
+    }).join('');
 }
 
 function setSchemaMessage(text, ok) {
     el.schemaMessage.textContent = text;
     el.schemaMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function startEditSchemaRule(id) {
+    const rule = findSchemaRuleById(id);
+    if (!rule) return;
+    state.editingSchemaRuleId = id;
+    el.schemaName.value = rule.name || '';
+    el.schemaPattern.value = rule.pattern;
+    el.schemaTarget.value = rule.target;
+    el.schemaJson.value = JSON.stringify(rule.schema, null, 2);
+    el.schemaSave.textContent = 'Update';
+    el.schemaCancelEdit.hidden = false;
+    setSchemaMessage('Editing "' + (rule.name || rule.pattern) + '"', true);
+    renderSchemaRules();
+    el.schemaPattern.focus();
+}
+
+function cancelEditSchemaRule() {
+    state.editingSchemaRuleId = null;
+    el.schemaName.value = '';
+    el.schemaPattern.value = '';
+    el.schemaJson.value = '';
+    el.schemaSave.textContent = 'Save';
+    el.schemaCancelEdit.hidden = true;
+    setSchemaMessage('', true);
+    renderSchemaRules();
 }
 
 function rerenderSelectedDetail() {
@@ -1394,25 +1709,102 @@ el.schemaSave.addEventListener('click', () => {
         setSchemaMessage('Schema must be a JSON object', false);
         return;
     }
-    state.schemaRules.push({
-        id: String(Date.now()) + '-' + Math.random().toString(16).slice(2),
-        pattern,
-        target: el.schemaTarget.value === 'request' ? 'request' : 'response',
-        schema,
-    });
+    const name = el.schemaName.value.trim();
+    const target = el.schemaTarget.value === 'request' ? 'request' : 'response';
+    const editingId = state.editingSchemaRuleId;
+    if (editingId) {
+        if (state.localSchemaRules.some(r => r.id === editingId)) {
+            state.localSchemaRules = state.localSchemaRules.map(r =>
+                r.id === editingId ? normalizeSchemaRule({ id: editingId, name, pattern, target, schema }, 'local') : r);
+            saveSchemaRules();
+        } else {
+            // server/url-sourced rule: the edit becomes a local override, not a mutation of the
+            // cached remote copy, so refreshing/reloading that source can never silently drop it.
+            state.schemaOverrides[editingId] = { name, pattern, target, schema };
+            saveSchemaOverrides();
+            computeEffectiveSchemaRules();
+            renderSchemaRules();
+            rerenderSelectedDetail();
+        }
+        state.editingSchemaRuleId = null;
+        el.schemaSave.textContent = 'Save';
+        el.schemaCancelEdit.hidden = true;
+        setSchemaMessage('Updated', true);
+    } else {
+        state.localSchemaRules.push(normalizeSchemaRule({ name, pattern, target, schema }, 'local'));
+        setSchemaMessage('Saved', true);
+        saveSchemaRules();
+    }
+    el.schemaName.value = '';
     el.schemaPattern.value = '';
     el.schemaJson.value = '';
-    setSchemaMessage('Saved', true);
-    saveSchemaRules();
 });
+el.schemaCancelEdit.addEventListener('click', cancelEditSchemaRule);
 
 el.schemaList.addEventListener('click', (ev) => {
+    const toggle = ev.target.closest('.schema-toggle-server');
+    if (toggle) {
+        toggleServerItem('schema', toggle.dataset.id);
+        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        return;
+    }
+    const resetBt = ev.target.closest('.schema-reset');
+    if (resetBt) {
+        delete state.schemaOverrides[resetBt.dataset.id];
+        saveSchemaOverrides();
+        if (state.editingSchemaRuleId === resetBt.dataset.id) cancelEditSchemaRule();
+        computeEffectiveSchemaRules();
+        renderSchemaRules();
+        rerenderSelectedDetail();
+        setSchemaMessage('Reset to server version', true);
+        return;
+    }
+    const editBt = ev.target.closest('.schema-edit');
+    if (editBt) { startEditSchemaRule(editBt.dataset.id); return; }
     const bt = ev.target.closest('.schema-delete');
     if (!bt) return;
-    state.schemaRules = state.schemaRules.filter(rule => rule.id !== bt.dataset.id);
+    if (state.editingSchemaRuleId === bt.dataset.id) cancelEditSchemaRule();
+    state.localSchemaRules = state.localSchemaRules.filter(rule => rule.id !== bt.dataset.id);
     setSchemaMessage('Deleted', true);
     saveSchemaRules();
 });
+
+if (el.schemaRemoteLoad) {
+    el.schemaRemoteLoad.addEventListener('click', async () => {
+        const url = el.schemaRemoteUrl.value.trim();
+        if (!url) { setSchemaRemoteMessage('URL is required', false); return; }
+        if (!/^https?:\/\//i.test(url)) { setSchemaRemoteMessage('URL must be http(s)', false); return; }
+        setSchemaRemoteMessage('Loading…', true);
+        try {
+            await loadSchemaRulesFromUrl(url);
+            el.schemaRemoteUrl.value = '';
+            setSchemaRemoteMessage('Loaded', true);
+        } catch (e) {
+            setSchemaRemoteMessage('Failed to load: ' + e.message, false);
+        }
+    });
+}
+if (el.schemaRemoteSources) {
+    el.schemaRemoteSources.addEventListener('click', async (ev) => {
+        const refresh = ev.target.closest('.schema-source-refresh');
+        if (refresh) {
+            setSchemaRemoteMessage('Refreshing…', true);
+            try {
+                await loadSchemaRulesFromUrl(refresh.dataset.url);
+                setSchemaRemoteMessage('Refreshed', true);
+            } catch (e) {
+                setSchemaRemoteMessage('Failed to refresh: ' + e.message, false);
+            }
+            return;
+        }
+        const remove = ev.target.closest('.schema-source-remove');
+        if (remove) {
+            state.urlSchemaSources = state.urlSchemaSources.filter(s => s.url !== remove.dataset.url);
+            saveUrlSchemaSources();
+            setSchemaRemoteMessage('Removed', true);
+        }
+    });
+}
 
 // ---- dashboard links panel ----
 el.dashPreset.addEventListener('change', () => {
@@ -1437,20 +1829,41 @@ el.dashSave.addEventListener('click', () => {
     const urlTemplate = el.dashUrl.value.trim();
     if (!name) { setDashMessage('Name is required', false); return; }
     if (!urlTemplate) { setDashMessage('URL template is required', false); return; }
-    state.dashboardLinks.push(normalizeLink({
+    const fields = {
         name, system: el.dashSystem.value, scope: el.dashScope.value,
         urlTemplate, match: el.dashMatch.value.trim(),
-    }));
+    };
+    if (state.editingDashLinkId) {
+        const id = state.editingDashLinkId;
+        state.localDashboardLinks = state.localDashboardLinks.map(l =>
+            l.id === id ? normalizeLink({ ...fields, id, source: 'local' }) : l);
+        state.editingDashLinkId = null;
+        el.dashSave.textContent = 'Save';
+        el.dashCancelEdit.hidden = true;
+        setDashMessage('Updated', true);
+    } else {
+        state.localDashboardLinks.push(normalizeLink(fields));
+        setDashMessage('Saved', true);
+    }
     el.dashName.value = '';
     el.dashUrl.value = '';
     el.dashMatch.value = '';
-    setDashMessage('Saved', true);
     saveDashboardLinks();
 });
+el.dashCancelEdit.addEventListener('click', cancelEditDashboardLink);
 el.dashList.addEventListener('click', (ev) => {
+    const toggle = ev.target.closest('.dash-toggle-server');
+    if (toggle) {
+        toggleServerItem('dashboard', toggle.dataset.id);
+        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        return;
+    }
+    const editBt = ev.target.closest('.dash-edit');
+    if (editBt) { startEditDashboardLink(editBt.dataset.id); return; }
     const bt = ev.target.closest('.dash-delete');
     if (!bt) return;
-    state.dashboardLinks = state.dashboardLinks.filter(l => l.id !== bt.dataset.id);
+    if (state.editingDashLinkId === bt.dataset.id) cancelEditDashboardLink();
+    state.localDashboardLinks = state.localDashboardLinks.filter(l => l.id !== bt.dataset.id);
     setDashMessage('Deleted', true);
     saveDashboardLinks();
 });
@@ -1936,11 +2349,15 @@ loadSettingsTab();
 loadLanguage();
 updateDashboardSystemPreview();
 updateDashboardTemplatePreview();
-loadSchemaRules();
+loadDisabledServerItems();
+loadSchemaOverrides();
+loadUrlSchemaSources(false);
+loadSchemaRules(false);
 loadTraceLinks();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));
-loadDashboardLinks();
+loadDashboardLinks(false);
+loadServerConfig();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
 loadRuns();

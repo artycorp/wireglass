@@ -475,6 +475,29 @@ button:disabled { opacity: .45; cursor: default; }
     border-radius: 5px;
     background: rgba(255,255,255,.025);
 }
+.schema-rule.editing {
+    border-color: var(--accent);
+    background: rgba(76,154,255,.08);
+}
+.schema-rule.server {
+    border-style: dashed;
+}
+.schema-rule.disabled {
+    opacity: .58;
+}
+.schema-rule.disabled strong,
+.schema-rule.disabled code {
+    text-decoration: line-through;
+}
+.schema-rule.overridden {
+    border-color: #d9b23c;
+    background: rgba(217,178,60,.14);
+}
+.schema-remote {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+}
 .schema-rule code {
     flex: 1 1 auto;
     min-width: 0;
