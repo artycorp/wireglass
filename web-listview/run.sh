@@ -7,13 +7,15 @@
 # nested-jar URIs ("URI is not hierarchical"). A flat classpath keeps every
 # dependency as a real file and avoids this entirely.
 #
-# You can also run via:  mvn spring-boot:run
+# You can also run via:  mvn -pl web-listview -am spring-boot:run
 set -euo pipefail
 
-cd "$(dirname "$0")"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "[1/3] Compiling & packaging (skip tests)..."
-mvn -q -DskipTests package
+mvn -q -f "$ROOT_DIR/pom.xml" -pl web-listview -am -DskipTests install
+
+cd "$ROOT_DIR/web-listview"
 
 echo "[2/3] Resolving dependency classpath..."
 CP_FILE="$(mktemp)"

@@ -1,8 +1,10 @@
 package com.artembelikov.listview.capture;
 
 import com.artembelikov.listview.dto.RunRequest;
+import com.artembelikov.listview.dto.RunSummary;
 import com.artembelikov.listview.dto.RunStatus;
 import com.artembelikov.listview.store.PacketRepository;
+import com.artembelikov.listview.store.RunRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -16,6 +18,7 @@ import org.apache.http.entity.ContentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.stereotype.Service;
 import us.abstracta.jmeter.javadsl.JmeterDsl;
 import us.abstracta.jmeter.javadsl.core.DslTestPlan;
@@ -26,13 +29,13 @@ import us.abstracta.jmeter.javadsl.http.DslHttpSampler;
 public class TestRunService {
 
     private static final Logger LOG = LoggerFactory.getLogger(TestRunService.class);
-    private static final RunRequest DEMO = new RunRequest(
-            "https://httpbin.org/get", "GET", null, null, 2, 3);
 
     private final TrafficCaptureListenerFactory listenerFactory;
     private final PacketRepository repository;
+    private final RunRepository runRepository;
     private final PacketBus bus;
     private final Clock clock;
+    private final ServletWebServerApplicationContext webServerApplicationContext;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "jmeter-run");
         t.setDaemon(true);
@@ -44,33 +47,40 @@ public class TestRunService {
 
     @Autowired
     public TestRunService(TrafficCaptureListenerFactory listenerFactory, PacketRepository repository,
-                          PacketBus bus, Clock clock) {
+                          RunRepository runRepository, PacketBus bus, Clock clock,
+                          ServletWebServerApplicationContext webServerApplicationContext) {
         this.listenerFactory = listenerFactory;
         this.repository = repository;
+        this.runRepository = runRepository;
         this.bus = bus;
         this.clock = clock;
+        this.webServerApplicationContext = webServerApplicationContext;
     }
 
     public RunStatus start(RunRequest request) {
-        repository.clear();
         UUID runId = UUID.randomUUID();
         ActiveRun run = new ActiveRun(runId, request, Instant.now(clock));
         run.counter = bus.subscribe(packet -> {
+            if (!runId.equals(packet.runId())) {
+                return;
+            }
             run.captured.incrementAndGet();
             if (!packet.success()) {
                 run.errors.incrementAndGet();
             }
+            runRepository.upsert(toSummary(run, "RUNNING", null));
         });
         runs.put(runId, run);
+        runRepository.upsert(toSummary(run, "RUNNING", null));
 
-        DslTestPlan testPlan = buildPlan(request);
+        DslTestPlan testPlan = buildPlan(request, runId);
         Future<?> task = executor.submit(() -> execute(runId, testPlan));
         run.task = task;
         return toStatus(run);
     }
 
     public RunStatus startDemo() {
-        return start(DEMO);
+        return start(new RunRequest(demoUrl(), "GET", null, null, 2, 3));
     }
 
     private void execute(UUID runId, DslTestPlan testPlan) {
@@ -97,6 +107,7 @@ public class TestRunService {
                 run.request.threads(), run.request.iterations(),
                 run.captured.get(), run.errors.get());
         finished.put(run.id, status);
+        runRepository.upsert(toSummary(run, state, status.finishedAt()));
     }
 
     public boolean stop(UUID runId) {
@@ -130,13 +141,27 @@ public class TestRunService {
                 run.captured.get(), run.errors.get());
     }
 
-    private DslTestPlan buildPlan(RunRequest request) {
+    private RunSummary toSummary(ActiveRun run, String state, Instant finishedAt) {
+        return new RunSummary(
+                run.id,
+                "internal",
+                state,
+                run.startedAt,
+                finishedAt,
+                run.request.url(),
+                run.request.threads(),
+                run.request.iterations(),
+                run.captured.get(),
+                run.errors.get());
+    }
+
+    private DslTestPlan buildPlan(RunRequest request, UUID runId) {
         DslHttpSampler sampler = JmeterDsl.httpSampler(request.url());
         String method = request.method().toUpperCase();
         configureMethodAndBody(sampler, method, request);
         return JmeterDsl.testPlan(
                 JmeterDsl.threadGroup(request.threads(), request.iterations(), sampler),
-                listenerFactory.newListener());
+                listenerFactory.newListener(runId));
     }
 
     private void configureMethodAndBody(DslHttpSampler sampler, String method, RunRequest request) {
@@ -169,6 +194,10 @@ public class TestRunService {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    private String demoUrl() {
+        return "http://127.0.0.1:" + webServerApplicationContext.getWebServer().getPort() + "/api/demo/http";
     }
 
     private static final class ActiveRun {

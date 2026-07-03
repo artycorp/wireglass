@@ -5,6 +5,7 @@ import com.artembelikov.listview.client.protocol.PacketExtractor;
 import com.artembelikov.listview.client.protocol.TcpPacketExtractor;
 import com.artembelikov.listview.client.protocol.WebsocketPacketExtractor;
 import com.artembelikov.listview.config.ListViewProperties;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +21,8 @@ public class TrafficCaptureListenerFactory {
         this.props = props;
     }
 
-    public TrafficCaptureListener newListener() {
-        return new TrafficCaptureListener(new InProcessSink(bus), props.getMaxBodyBytes(),
+    public TrafficCaptureListener newListener(UUID runId) {
+        return new TrafficCaptureListener(new InProcessSink(bus, runId), props.getMaxBodyBytes(),
                 orderedExtractors());
     }
 

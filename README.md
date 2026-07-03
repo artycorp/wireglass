@@ -51,18 +51,20 @@ jmeter-web-listview/
 Two options:
 
 ```bash
-cd web-listview
-
 # option 1 (recommended for development)
-mvn spring-boot:run
+mvn -pl web-listview -am spring-boot:run
 
 # option 2 — flat classpath via the helper script
-./run.sh
+./web-listview/run.sh
 ```
 
 Then open <http://localhost:8080>.
 
 `java -jar target/web-listview-*.jar` will **not** work because of the limitation above.
+
+`-am` matters here: `web-listview` depends on `web-listview-client`, and running only the app module can
+pick up a stale client jar from your local Maven repository. That manifests as packets not appearing in
+the UI or `NoSuchMethodError` at runtime.
 
 ## HTTP API
 
@@ -147,3 +149,7 @@ shows request/response bodies, and the filter hides non-matching packets.
 `src/main/resources/application.yml` exposes:
 - `app.listview.ring-buffer-size` (default 5000) — in-memory packet history cap
 - `app.listview.max-body-bytes` (default 256 KiB) — per-packet body truncation
+
+## Server-provided rules and dashboards
+
+The app can load read-only JSON Schema rules and dashboard links from a server-hosted JSON file configured by `app.listview.remote-config-url`. The expected file format is documented in [`docs/server-config-format.md`](docs/server-config-format.md).

@@ -157,6 +157,51 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void packetsExposeRunIdInHistoryAndLiveStream() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+
+            String runId = (String) page.evaluate("() => state.packets[0] && state.packets[0].runId");
+            assertThat(runId).isNotBlank();
+        }
+    }
+
+    @Test
+    void runListShowsMultipleRunsAndFiltersTableBySelection() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.waitForSelector("#run-list .run-chip",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            String firstRunId = page.getAttribute("#run-list .run-chip", "data-run-id");
+            int firstCount = rowCount(page);
+            assertThat(firstRunId).isNotBlank();
+            assertThat(firstCount).isGreaterThan(0);
+
+            startRun(page, "POST", "{\"n\":2}", "application/json");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#run-list .run-chip').length >= 2",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.locator("#run-list .run-chip").count()).isGreaterThanOrEqualTo(2);
+
+            page.click("#run-list .run-chip[data-run-id='" + firstRunId + "']");
+            page.waitForFunction(
+                    "(expected) => document.querySelectorAll('#packet-body tr.pkt').length === expected",
+                    firstCount,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            int filteredCount = rowCount(page);
+            assertThat(filteredCount).isEqualTo(firstCount);
+        }
+    }
+
+    @Test
     void selectingPacketShowsRequestAndResponseBodies() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
@@ -641,6 +686,38 @@ class TrafficInspectorE2EIT {
         }
     }
 
+    @Test
+    void externalClientGeneratesRunIdWhenNotProvided() throws Exception {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.waitForFunction(
+                    "() => window.EventSource && true",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+
+            Thread runner = new Thread(() -> {
+                try {
+                    JmeterDsl.testPlan(
+                            JmeterDsl.threadGroup(1, 1, JmeterDsl.httpSampler(echoUrl("/"))),
+                            new TrafficCaptureClient("http://localhost:" + appPort)
+                    ).run();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, "external-jmeter-dsl-run-id");
+            runner.setDaemon(true);
+            runner.start();
+
+            waitForRowCount(page, 1);
+            page.waitForSelector("#run-list .run-chip",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat((String) page.evaluate("() => state.packets[0] && state.packets[0].runId"))
+                    .isNotBlank();
+
+            runner.join(TEST_TIMEOUT.toMillis());
+        }
+    }
+
     private void startRun(Page page, String method, String body, String contentType) {
         page.click("#run-toggle");  // the load form lives in a collapsible panel
         page.fill("#f-url", echoUrl("/"));
@@ -684,6 +761,25 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void urlColumnGetsMostOfTheTableWidth() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            // fixed layout: the url column must dominate; each fixed column stays narrow.
+            Boolean ok = (Boolean) page.evaluate("""
+                    () => {
+                      const layout = getComputedStyle(document.querySelector('#packet-table')).tableLayout;
+                      const url = document.querySelector('#packet-body tr.pkt .c-url').getBoundingClientRect().width;
+                      const status = document.querySelector('#packet-body tr.pkt .c-status').getBoundingClientRect().width;
+                      return layout === 'fixed' && url > status * 2;
+                    }
+                    """);
+            assertThat(ok).isTrue();
+        }
+    }
+
+    @Test
     void dashboardPanelAddsListsPersistsAndDeletesLinks() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
@@ -709,6 +805,57 @@ class TrafficInspectorE2EIT {
                     "() => /No dashboard links/.test(document.querySelector('#dash-list').textContent)",
                     null,
                     new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+        }
+    }
+
+    @Test
+    void dashboardPanelEditsAnExistingLinkInPlace() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "dashboards");
+
+            page.fill("#dash-name", "Open in Grafana");
+            page.selectOption("#dash-scope", "packet");
+            page.fill("#dash-url", "https://grafana.example/d/UID?host={host}");
+            page.fill("#dash-match", "old-host");
+            page.click("#dash-save");
+            assertThat(page.innerText("#dash-list")).contains("Open in Grafana");
+
+            // editing pre-fills the form and switches Save -> Update
+            page.click("#dash-list .dash-edit");
+            assertThat(page.inputValue("#dash-name")).isEqualTo("Open in Grafana");
+            assertThat(page.inputValue("#dash-url")).isEqualTo("https://grafana.example/d/UID?host={host}");
+            assertThat(page.inputValue("#dash-match")).isEqualTo("old-host");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Update");
+            assertThat(page.isVisible("#dash-cancel-edit")).isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#dash-list .schema-rule').classList.contains('editing')")).isTrue();
+
+            page.fill("#dash-name", "Open in Grafana (renamed)");
+            page.fill("#dash-match", "new-host");
+            page.click("#dash-save");
+
+            // updated in place: still exactly one row, new name, edit mode closed
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#dash-list .schema-rule').length")).isEqualTo(1);
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#dash-cancel-edit")).isFalse();
+
+            // persists across reload, including the field that isn't rendered in the list (match)
+            page.reload();
+            openSettingsTab(page, "dashboards");
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
+            page.click("#dash-list .dash-edit");
+            assertThat(page.inputValue("#dash-match")).isEqualTo("new-host");
+
+            // cancel restores the idle Save state without touching the link
+            page.fill("#dash-name", "should not be saved");
+            page.click("#dash-cancel-edit");
+            assertThat(page.innerText("#dash-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#dash-cancel-edit")).isFalse();
+            assertThat(page.inputValue("#dash-name")).isEqualTo("");
+            assertThat(page.innerText("#dash-list strong")).isEqualTo("Open in Grafana (renamed)");
         }
     }
 
@@ -837,6 +984,25 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void navTabHighlightFollowsScroll() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            page.click("#packet-body tr.pkt");
+            page.waitForSelector(".detail h2",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            // scrolling the raw section into view should activate the Raw tab without a click.
+            page.evaluate("() => document.getElementById('detail-raw').scrollIntoView({block:'start'})");
+            page.waitForFunction(
+                    "() => document.querySelector('.detail-tab[data-jump=raw]').classList.contains('active')",
+                    null,
+                    new Page.WaitForFunctionOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.querySelector(".detail-tab.active").getAttribute("data-jump")).isEqualTo("raw");
+        }
+    }
+
+    @Test
     void globalDashboardLinkAppearsInTopBar() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
@@ -853,6 +1019,122 @@ class TrafficInspectorE2EIT {
             assertThat(a.getAttribute("href")).isEqualTo("https://grafana.example/home");
             assertThat(a.getAttribute("rel")).contains("noopener");
             assertThat(a.getAttribute("target")).isEqualTo("_blank");
+        }
+    }
+
+    @Test
+    void xmlBodiesArePrettyPrinted() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            String pretty = (String) page.evaluate(
+                    "() => prettyXml('<a><b>1</b><c>2</c></a>')");
+            assertThat(pretty).contains("\n");
+            assertThat(pretty).contains("  <b>1</b>");
+        }
+    }
+
+    @Test
+    void traceHeaderRendersConfiguredLink() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            // buildTraceUrl substitutes {value} and rejects non-http(s) templates.
+            assertThat((String) page.evaluate(
+                    "() => buildTraceUrl('https://sfx.test/trace/{value}', 'abc/def')"))
+                    .isEqualTo("https://sfx.test/trace/abc%2Fdef");
+            assertThat(page.evaluate(
+                    "() => buildTraceUrl('javascript:alert(1)', 'x')")).isNull();
+
+            // Use a header distinct from the seeded default (x-b3-traceid) so this asserts the
+            // user-configured template, not the seed (traceLinkFor returns the first match).
+            openSettingsTab(page, "trace");
+            page.fill("#trace-header", "x-request-id");
+            page.fill("#trace-url", "https://sfx.test/trace/{value}");
+            page.click("#trace-save");
+            assertThat(page.innerText("#trace-list")).containsIgnoringCase("x-request-id");
+            page.click("#settings-back");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'trace-test', url: 'https://x.test/', label: 't', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 'th',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: { 'X-Request-Id': 'deadbeef' },
+                      responseHeaders: {}, requestBody: '', responseBody: '{}'
+                    })
+                    """);
+            var link = page.querySelector("#detail-headers a.trace-link");
+            assertThat(link).isNotNull();
+            assertThat(link.getAttribute("href")).isEqualTo("https://sfx.test/trace/deadbeef");
+            assertThat(link.getAttribute("target")).isEqualTo("_blank");
+            assertThat(link.getAttribute("rel")).contains("noopener");
+        }
+    }
+
+    @Test
+    void setCookieHeaderIsSplitIntoNameValueTable() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            String parsed = (String) page.evaluate(
+                    "() => JSON.stringify(parseCookie('Set-Cookie', 'sid=abc123; Path=/; HttpOnly'))");
+            assertThat(parsed).contains("sid").contains("abc123").contains("Path").contains("HttpOnly");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'cookie-test', url: 'https://x.test/', label: 'c', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 't',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: { Cookie: 'a=1; b=2' },
+                      responseHeaders: { 'Set-Cookie': 'sid=abc123; Path=/; HttpOnly' },
+                      requestBody: '', responseBody: '{}'
+                    })
+                    """);
+            assertThat(page.querySelector("#detail-headers .cookie-table")).isNotNull();
+            String headers = page.innerText("#detail-headers");
+            assertThat(headers).contains("sid").contains("abc123").contains("HttpOnly");
+        }
+    }
+
+    @Test
+    void listRowShowsSchemaValidationIndicator() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "schema");
+            page.fill("#schema-pattern", "/");
+            page.selectOption("#schema-target", "response");
+            page.fill("#schema-json", "{\"type\":\"object\",\"required\":[\"missing\"]}");
+            page.click("#schema-save");
+            page.click("#settings-back");
+
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            assertThat(page.querySelector("#packet-body tr.pkt.pkt-invalid")).isNotNull();
+            assertThat(page.querySelector("#packet-body tr.pkt .c-valid .valid-shield")).isNotNull();
+        }
+    }
+
+    @Test
+    void invalidResponseBodyIsTinted() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "schema");
+            page.fill("#schema-pattern", "/");
+            page.selectOption("#schema-target", "response");
+            page.fill("#schema-json", "{\"type\":\"object\",\"required\":[\"missing\"]}");
+            page.click("#schema-save");
+            page.click("#settings-back");
+
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'tint-test', url: '/', label: 't', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 'th',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: {}, responseHeaders: {},
+                      requestBody: '', responseBody: '{"present":1}'
+                    })
+                    """);
+            page.waitForSelector("#detail-bodies .cm-body-invalid",
+                    new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
+            assertThat(page.querySelector("#detail-bodies .cm-body-invalid")).isNotNull();
         }
     }
 }

@@ -2,6 +2,7 @@ package com.artembelikov.listview.web;
 
 import com.artembelikov.listview.client.dto.CapturedPacket;
 import com.artembelikov.listview.store.PacketRepository;
+import com.artembelikov.listview.store.RunRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,15 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class PacketsController {
 
     private final PacketRepository repository;
+    private final RunRepository runs;
 
     @Autowired
-    public PacketsController(PacketRepository repository) {
+    public PacketsController(PacketRepository repository, RunRepository runs) {
         this.repository = repository;
+        this.runs = runs;
     }
 
     @GetMapping
-    public List<CapturedPacket> recent(@RequestParam(defaultValue = "200") int limit) {
-        return repository.recent(limit);
+    public List<CapturedPacket> recent(
+            @RequestParam(required = false) UUID runId,
+            @RequestParam(defaultValue = "200") int limit) {
+        return repository.recent(runId, limit);
     }
 
     @GetMapping("/{id}")
@@ -38,5 +43,6 @@ public class PacketsController {
     @DeleteMapping
     public void clear() {
         repository.clear();
+        runs.clear();
     }
 }

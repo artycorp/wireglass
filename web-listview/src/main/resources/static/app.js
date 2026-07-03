@@ -2,9 +2,11 @@
 
 const state = {
     packets: [],          // all received packets
+    runs: [],
     seen: new Set(),      // packet ids already added (dedupe history vs. live SSE)
     selectedId: null,
-    currentRunId: null,
+    selectedRunId: null,
+    activeRunId: null,
     filter: {
         text: '',
         searchBodies: false,
@@ -18,8 +20,18 @@ const state = {
     maxElapsed: 1,        // running max elapsedMs, drives the waterfall scale
     sort: { key: null, dir: 'asc' },  // null key = insertion order
     detailCollapsed: false,
-    schemaRules: [],
+    serverSchemaRules: [],
+    localSchemaRules: [],
+    urlSchemaSources: [],   // [{url, fetchedAt, rules:[...]}] loaded ad hoc from a URL repository
+    schemaOverrides: {},    // id -> {name,pattern,target,schema} local edit of a server/url-sourced rule
+    schemaRules: [],        // effective (enabled, override-applied) list used by the validator
+    serverDashboardLinks: [],
+    localDashboardLinks: [],
     dashboardLinks: [],
+    disabledServerItems: new Set(),
+    traceLinks: [],
+    editingDashLinkId: null,
+    editingSchemaRuleId: null,
     settingsTab: 'schema',
 };
 
@@ -42,6 +54,8 @@ const el = {
     demo: document.getElementById('demo-btn'),
     stop: document.getElementById('stop-btn'),
     clear: document.getElementById('clear-btn'),
+    runAll: document.getElementById('run-all'),
+    runList: document.getElementById('run-list'),
     status: document.getElementById('run-status'),
     tbody: document.getElementById('packet-body'),
     count: document.getElementById('packet-count'),
@@ -61,12 +75,18 @@ const el = {
     schemaCount: document.getElementById('schema-count'),
     dashboardCount: document.getElementById('dashboard-count'),
     schemaPanel: document.getElementById('schema-panel'),
+    schemaName: document.getElementById('schema-name'),
     schemaPattern: document.getElementById('schema-pattern'),
     schemaTarget: document.getElementById('schema-target'),
     schemaJson: document.getElementById('schema-json'),
     schemaSave: document.getElementById('schema-save'),
+    schemaCancelEdit: document.getElementById('schema-cancel-edit'),
     schemaMessage: document.getElementById('schema-message'),
     schemaList: document.getElementById('schema-list'),
+    schemaRemoteUrl: document.getElementById('schema-remote-url'),
+    schemaRemoteLoad: document.getElementById('schema-remote-load'),
+    schemaRemoteMessage: document.getElementById('schema-remote-message'),
+    schemaRemoteSources: document.getElementById('schema-remote-sources'),
     dashboardPanel: document.getElementById('dashboard-panel'),
     dashName: document.getElementById('dash-name'),
     dashSystem: document.getElementById('dash-system'),
@@ -78,8 +98,15 @@ const el = {
     dashMatch: document.getElementById('dash-match'),
     dashWindow: document.getElementById('dash-window'),
     dashSave: document.getElementById('dash-save'),
+    dashCancelEdit: document.getElementById('dash-cancel-edit'),
     dashMessage: document.getElementById('dash-message'),
     dashList: document.getElementById('dash-list'),
+    traceHeader: document.getElementById('trace-header'),
+    traceUrl: document.getElementById('trace-url'),
+    traceSave: document.getElementById('trace-save'),
+    traceMessage: document.getElementById('trace-message'),
+    traceList: document.getElementById('trace-list'),
+    traceCount: document.getElementById('trace-count'),
     globalLinks: document.getElementById('global-links'),
     detail: document.getElementById('detail-content'),
     detailPane: document.getElementById('detail-pane'),
@@ -100,8 +127,215 @@ const el = {
 };
 
 const SCHEMA_RULES_KEY = 'listview.schemaRules';
+const SCHEMA_OVERRIDES_KEY = 'listview.schemaOverrides';
+const URL_SCHEMA_SOURCES_KEY = 'listview.urlSchemaSources';
 const SETTINGS_TAB_KEY = 'listview.settingsTab';
 const LANGUAGE_KEY = 'listview.language';
+const DISABLED_SERVER_ITEMS_KEY = 'listview.disabledServerItems';
+
+function serverItemKey(kind, id) {
+    return kind + ':' + String(id || '');
+}
+
+function isServerItemDisabled(kind, id) {
+    return state.disabledServerItems.has(serverItemKey(kind, id));
+}
+
+function loadDisabledServerItems() {
+    try {
+        const raw = localStorage.getItem(DISABLED_SERVER_ITEMS_KEY);
+        const ids = raw ? JSON.parse(raw) : [];
+        state.disabledServerItems = new Set(Array.isArray(ids) ? ids.map(String) : []);
+    } catch (e) {
+        state.disabledServerItems = new Set();
+    }
+}
+
+function saveDisabledServerItems() {
+    localStorage.setItem(DISABLED_SERVER_ITEMS_KEY, JSON.stringify([...state.disabledServerItems].sort()));
+}
+
+function toggleServerItem(kind, id) {
+    const key = serverItemKey(kind, id);
+    if (state.disabledServerItems.has(key)) state.disabledServerItems.delete(key);
+    else state.disabledServerItems.add(key);
+    saveDisabledServerItems();
+    rebuildEffectiveRules();
+}
+
+function normalizeSchemaRule(rule, source, sourceUrl) {
+    return {
+        id: String(rule.id || (String(Date.now()) + '-' + Math.random().toString(16).slice(2))),
+        name: rule.name ? String(rule.name) : '',
+        pattern: String(rule.pattern),
+        target: rule.target === 'request' ? 'request' : 'response',
+        schema: rule.schema,
+        source: source || 'local',
+        sourceUrl: sourceUrl || null,
+    };
+}
+
+function normalizeRemoteDashboardLink(link) {
+    return normalizeLink({
+        id: String(link.id),
+        name: String(link.name),
+        system: link.system || 'grafana',
+        scope: link.scope === 'global' ? 'global' : 'packet',
+        urlTemplate: String(link.urlTemplate),
+        match: link.match || '',
+        source: 'server',
+    });
+}
+
+// Raw (pre-override, pre-disable) rules from the server config endpoint and any ad hoc URL
+// sources, de-duplicated by id (a later source wins, matching load order).
+function allRemoteSchemaRules() {
+    const byId = new Map();
+    state.serverSchemaRules.forEach(r => byId.set(r.id, r));
+    state.urlSchemaSources.forEach(s => s.rules.forEach(r => byId.set(r.id, r)));
+    return [...byId.values()];
+}
+
+// A local edit of a server/url-sourced rule is stored separately from the cached raw rule so
+// that reloading/refreshing the source never silently discards it; `overridden: true` is what
+// the yellow highlight keys off (see renderSchemaRules).
+function effectiveSchemaRule(rule) {
+    const override = state.schemaOverrides[rule.id];
+    return override ? { ...rule, ...override, overridden: true } : rule;
+}
+
+function findSchemaRuleById(id) {
+    return allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules)
+        .find(r => r.id === id) || null;
+}
+
+function computeEffectiveSchemaRules() {
+    state.schemaRules = allRemoteSchemaRules()
+        .filter(r => !isServerItemDisabled('schema', r.id))
+        .map(effectiveSchemaRule)
+        .concat(state.localSchemaRules);
+}
+
+function computeEffectiveDashboardLinks() {
+    state.dashboardLinks = state.serverDashboardLinks
+        .filter(l => !isServerItemDisabled('dashboard', l.id))
+        .concat(state.localDashboardLinks);
+}
+
+function rebuildEffectiveRules() {
+    computeEffectiveSchemaRules();
+    computeEffectiveDashboardLinks();
+    renderSchemaRules();
+    refreshDashboardViews();
+    rerenderSelectedDetail();
+}
+
+// Loads the app-configured (single, backend-side) server config. Independent of the ad hoc
+// URL-source cache below — this always targets /api/config/rules.
+async function loadServerConfig() {
+    try {
+        const res = await fetch('/api/config/rules', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const config = await res.json();
+        state.serverSchemaRules = Array.isArray(config.schemas)
+            ? config.schemas.filter(r => r && r.id && r.pattern && r.target && r.schema)
+                .map(r => normalizeSchemaRule(r, 'server'))
+            : [];
+        state.serverDashboardLinks = Array.isArray(config.dashboards)
+            ? config.dashboards.filter(l => l && l.id && l.name && l.urlTemplate)
+                .map(normalizeRemoteDashboardLink)
+            : [];
+    } catch (e) {
+        state.serverSchemaRules = [];
+        state.serverDashboardLinks = [];
+        console.warn('[config] failed to load server rules', e);
+    }
+    rebuildEffectiveRules();
+}
+
+function loadSchemaOverrides() {
+    try {
+        const raw = localStorage.getItem(SCHEMA_OVERRIDES_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        state.schemaOverrides = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+        state.schemaOverrides = {};
+    }
+}
+
+function saveSchemaOverrides() {
+    localStorage.setItem(SCHEMA_OVERRIDES_KEY, JSON.stringify(state.schemaOverrides));
+}
+
+function loadUrlSchemaSources(render = true) {
+    try {
+        const raw = localStorage.getItem(URL_SCHEMA_SOURCES_KEY);
+        const stored = raw ? JSON.parse(raw) : [];
+        state.urlSchemaSources = Array.isArray(stored)
+            ? stored.filter(s => s && s.url).map(s => ({
+                url: String(s.url),
+                fetchedAt: s.fetchedAt || null,
+                rules: Array.isArray(s.rules)
+                    ? s.rules.filter(r => r && r.id && r.pattern && r.target && r.schema)
+                        .map(r => normalizeSchemaRule(r, 'url', s.url))
+                    : [],
+            }))
+            : [];
+    } catch (e) {
+        state.urlSchemaSources = [];
+    }
+    computeEffectiveSchemaRules();
+    if (render) renderSchemaRules();
+}
+
+function saveUrlSchemaSources() {
+    localStorage.setItem(URL_SCHEMA_SOURCES_KEY, JSON.stringify(state.urlSchemaSources));
+    computeEffectiveSchemaRules();
+    renderSchemaRules();
+    rerenderSelectedDetail();
+}
+
+// Fetched client-side (subject to the target's CORS policy) since this URL is picked by the
+// user at runtime, not known to the backend ahead of time. Same {version, schemas} shape as the
+// backend-configured server config (docs/server-config-format.md).
+async function loadSchemaRulesFromUrl(url) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const config = await res.json();
+    if (config.version !== 1) throw new Error('unsupported version ' + config.version);
+    const rules = Array.isArray(config.schemas)
+        ? config.schemas.filter(r => r && r.id && r.pattern && r.target && r.schema)
+        : [];
+    if (!rules.length) throw new Error('no valid schema rules found');
+    const withoutUrl = state.urlSchemaSources.filter(s => s.url !== url);
+    state.urlSchemaSources = withoutUrl.concat([{
+        url,
+        fetchedAt: Date.now(),
+        rules: rules.map(r => normalizeSchemaRule(r, 'url', url)),
+    }]);
+    saveUrlSchemaSources();
+}
+
+function setSchemaRemoteMessage(text, ok) {
+    if (!el.schemaRemoteMessage) return;
+    el.schemaRemoteMessage.textContent = text;
+    el.schemaRemoteMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function renderUrlSchemaSources() {
+    if (!el.schemaRemoteSources) return;
+    if (!state.urlSchemaSources.length) {
+        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">No URL sources loaded.</div>';
+        return;
+    }
+    el.schemaRemoteSources.innerHTML = state.urlSchemaSources.map(s =>
+        '<div class="schema-rule" data-url="' + esc(s.url) + '">'
+        + '<code>' + esc(s.url) + '</code>'
+        + '<span class="validation-target">' + s.rules.length + ' rule(s)</span>'
+        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">Refresh</button>'
+        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">Remove</button>'
+        + '</div>').join('');
+}
 
 function ensureStream() {
     if (state.es) return;
@@ -116,6 +350,9 @@ function ensureStream() {
 }
 
 function addPacket(packet) {
+    if (packet && !packet.runId) {
+        packet.runId = state.activeRunId || state.selectedRunId || null;
+    }
     if (packet && packet.id != null && state.seen.has(packet.id)) {
         return; // already shown (history loaded after a live SSE delivery, or vice versa)
     }
@@ -123,9 +360,14 @@ function addPacket(packet) {
         state.seen.add(packet.id);
     }
     state.packets.push(packet);
+    upsertRunFromPacket(packet);
     if (packet && packet.elapsedMs > state.maxElapsed) {
         state.maxElapsed = packet.elapsedMs;
         rescaleWaterfalls();
+    }
+    if (state.selectedRunId && packet.runId !== state.selectedRunId) {
+        updateCount(visiblePackets().filter(matchesFilter).length);
+        return;
     }
     if (state.sort.key) {
         scheduleRebuild();  // sorted view: a plain append would land out of order
@@ -136,6 +378,12 @@ function addPacket(packet) {
         appendRow(packet);
     }
     updateCount(el.tbody.querySelectorAll('tr.pkt').length);
+}
+
+function upsertRunFromPacket(packet) {
+    if (!packet || !packet.runId) return;
+    if (state.runs.some(run => run.id === packet.runId)) return;
+    loadRuns();
 }
 
 // Coalesce bursty SSE updates into one re-render per frame while a sort is active.
@@ -150,8 +398,13 @@ function scheduleRebuild() {
 // before the page was opened). Live packets arrive afterwards via SSE and are deduped by id.
 async function loadRecent() {
     try {
-        const r = await fetch('/api/packets?limit=500');
+        const suffix = state.selectedRunId
+            ? '?runId=' + encodeURIComponent(state.selectedRunId) + '&limit=500'
+            : '?limit=500';
+        const r = await fetch('/api/packets' + suffix);
         if (!r.ok) return;
+        state.packets = [];
+        state.seen = new Set();
         const recent = await r.json();
         for (const p of recent) {
             addPacket(p);
@@ -160,6 +413,49 @@ async function loadRecent() {
     } catch (e) {
         // ignore: live SSE will still carry new packets
     }
+}
+
+async function loadRuns() {
+    try {
+        const r = await fetch('/api/runs');
+        if (!r.ok) return;
+        state.runs = await r.json();
+        renderRunList();
+    } catch (e) {
+        // ignore; packets still render without summaries
+    }
+}
+
+function shortId(id) {
+    return id ? String(id).slice(0, 8) : '';
+}
+
+function renderRunList() {
+    if (!el.runList || !el.runAll) return;
+    el.runAll.classList.toggle('active', !state.selectedRunId);
+    el.runList.innerHTML = state.runs.map(run =>
+        '<button type="button" class="run-chip' + (run.id === state.selectedRunId ? ' active' : '') + '"'
+        + ' data-run-id="' + esc(run.id) + '" title="run ' + esc(run.id) + '">'
+        + '<span class="src">' + esc(run.source) + '</span> '
+        + '<span class="rid">#' + esc(shortId(run.id)) + '</span> '
+        + '<span class="state">' + esc(run.state) + '</span>'
+        + '</button>').join('');
+}
+
+function visiblePackets() {
+    return state.selectedRunId
+        ? state.packets.filter(packet => packet.runId === state.selectedRunId)
+        : state.packets;
+}
+
+async function selectRun(runId) {
+    state.selectedRunId = runId || null;
+    state.selectedId = null;
+    renderRunList();
+    el.tbody.innerHTML = '';
+    renderDetail(null);
+    closeDetail();
+    await loadRecent();
 }
 
 // Facets combine with AND across groups; within the status group selected classes are OR'd.
@@ -186,6 +482,16 @@ function appendRow(packet) {
     const row = el.rowTpl.content.firstElementChild.cloneNode(true);
     row.dataset.id = packet.id;
     row.querySelector('.c-idx').textContent = idx;
+    const validation = validatePacket(packet);
+    if (validation.results.length) {
+        const invalid = validation.results.some(r => r.errors.length);
+        row.classList.add(invalid ? 'pkt-invalid' : 'pkt-valid');
+        const shield = document.createElement('span');
+        shield.className = 'valid-shield ' + (invalid ? 'invalid' : 'valid');
+        shield.textContent = invalid ? '✗' : '✓';
+        shield.title = invalid ? 'Schema: invalid' : 'Schema: valid';
+        row.querySelector('.c-valid').appendChild(shield);
+    }
     row.querySelector('.c-time').textContent = formatTime(packet.timestamp);
     const typeCell = row.querySelector('.c-type');
     typeCell.innerHTML = '<span class="type-pill">' + esc(packet.type) + '</span>';
@@ -290,6 +596,7 @@ function selectPacket(id, row) {
 }
 
 function closeDetail() {
+    teardownDetailScrollSpy();
     collapseDetail();
     el.detailPane.classList.remove('open');
 }
@@ -308,7 +615,7 @@ function restoreDetail() {
 
 function renderDetail(packet) {
     detailBodies = [];
-    if (!packet) { el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
+    if (!packet) { teardownDetailScrollSpy(); el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
     const validation = validatePacket(packet);
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -344,12 +651,13 @@ function renderDetail(packet) {
         + dashboardSectionPlaceholder()
         + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
         + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
-        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request)
-        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response) + '</section>'
+        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
+        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
         + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
     mountDashboardLinks(packet);
+    mountDetailScrollSpy();
 }
 
 function detailMetric(label, value, suffix) {
@@ -387,11 +695,50 @@ function dashboardSectionPlaceholder() {
         + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
+function isCookieHeader(name) {
+    const n = String(name).toLowerCase();
+    return n === 'cookie' || n === 'set-cookie';
+}
+
+// Split a Cookie / Set-Cookie value into name/value pairs. For Set-Cookie the first segment is the
+// cookie itself and the remaining segments are attributes (Path, HttpOnly, ...). Attribute-only
+// segments (no '=') carry an empty value. Pure — safe to unit-test.
+function parseCookie(headerName, value) {
+    const segments = String(value).split(';').map(s => s.trim()).filter(Boolean);
+    const toPair = (seg) => {
+        const eq = seg.indexOf('=');
+        return eq < 0 ? { name: seg, value: '' } : { name: seg.slice(0, eq).trim(), value: seg.slice(eq + 1).trim() };
+    };
+    if (headerName.toLowerCase() === 'set-cookie') {
+        return { pairs: segments.length ? [toPair(segments[0])] : [], attributes: segments.slice(1).map(toPair) };
+    }
+    return { pairs: segments.map(toPair), attributes: [] };
+}
+
+function cookieTableHtml(headerName, value) {
+    const parsed = parseCookie(headerName, value);
+    const row = (p, cls) => '<tr class="' + cls + '"><td class="ck-name">' + esc(p.name)
+        + '</td><td class="ck-value">' + esc(p.value) + '</td></tr>';
+    const pairs = parsed.pairs.map(p => row(p, 'ck-pair')).join('');
+    const attrs = parsed.attributes.map(p => row(p, 'ck-attr')).join('');
+    return '<table class="cookie-table">' + pairs + attrs + '</table>';
+}
+
 function sectionHeaders(title, headers, direction) {
     if (!headers || Object.keys(headers).length === 0) return '';
     let rows = '';
     for (const [k, v] of Object.entries(headers)) {
-        rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + esc(v) + '</td></tr>';
+        let rendered;
+        if (isCookieHeader(k)) {
+            rendered = cookieTableHtml(k, v);
+        } else {
+            const tpl = traceLinkFor(k);
+            const href = tpl ? buildTraceUrl(tpl, v) : null;
+            rendered = href
+                ? '<a class="trace-link" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(v) + '</a>'
+                : esc(v);
+        }
+        rows += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + rendered + '</td></tr>';
     }
     const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
     const label = kind === 'incoming' ? 'incoming' : 'outgoing';
@@ -403,9 +750,10 @@ function sectionHeaders(title, headers, direction) {
 // Detail bodies: valid JSON/HTML is rendered into a read-only CodeMirror (highlight + pretty-print);
 // "Raw" falls back to a plain <pre> of the original bytes. Views are mounted after innerHTML is set.
 let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered body block
+let detailSpy = null;   // IntersectionObserver that syncs nav tabs to scroll position
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
-function bodyBlock(title, body, binary, truncated, target, validationErrors) {
+function bodyBlock(title, body, binary, truncated, target, validationErrors, validationState) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? ' (truncated)' : '');
@@ -417,7 +765,7 @@ function bodyBlock(title, body, binary, truncated, target, validationErrors) {
     } else {
         note += ' (binary — hex preview)';
     }
-    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [] }) - 1;
+    const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [], validationState: validationState || null }) - 1;
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
     const toggle = mode ? viewToggleHtml(i) : '';
     const expand = ' <button type="button" class="body-expand" data-body="' + i
@@ -441,6 +789,27 @@ function humanSize(n) {
     return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+// Re-indent XML/HTML by inserting newlines between tags and tracking depth. Pure string transform:
+// self-closing tags, comments, and processing instructions do not change depth. Best-effort — it
+// never throws, so malformed markup falls back to a light reflow of whatever it produced.
+function prettyXml(str) {
+    const withBreaks = String(str).replace(/>\s*</g, '>\n<');
+    const lines = withBreaks.split('\n');
+    let depth = 0;
+    const out = [];
+    for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+        const isClose = /^<\//.test(line);
+        const isSelf = /\/>$/.test(line) || /^<[!?]/.test(line);
+        const opensAndCloses = /^<[^!?][^>]*>.*<\/[^>]+>$/.test(line);
+        if (isClose) depth = Math.max(0, depth - 1);
+        out.push('  '.repeat(depth) + line);
+        if (!isClose && !isSelf && !opensAndCloses && /^<[^!?]/.test(line)) depth++;
+    }
+    return out.join('\n');
+}
+
 // Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
 // as-is; anything else returns null so the caller falls back to a plain <pre>.
 function detectLang(body) {
@@ -450,7 +819,7 @@ function detectLang(body) {
         catch (e) { /* not valid JSON */ }
     }
     if (t.startsWith('<')) {
-        return { code: body, mode: { name: 'xml', htmlMode: true } };
+        return { code: prettyXml(body), mode: { name: 'xml', htmlMode: true } };
     }
     return null;
 }
@@ -459,6 +828,8 @@ function detectLang(body) {
 // formatted -> highlighted CodeMirror. `where` tunes sizing ('detail' caps height, 'modal' fills).
 function fillViewer(container, b, raw, where) {
     container.innerHTML = '';
+    container.classList.remove('cm-body-valid', 'cm-body-invalid');
+    if (b.validationState) container.classList.add('cm-body-' + b.validationState);
     if (raw || !b.mode || !window.CodeMirror) {
         const pre = document.createElement('pre');
         pre.textContent = raw ? b.body : (b.mode ? b.code : b.body);
@@ -486,11 +857,30 @@ function applyValidationMarks(cm, b) {
     const marked = new Set();
     for (const error of b.validationErrors) {
         if (marked.has(error.path)) continue;
-        const pos = findJsonPathPosition(b.code, error.path);
-        if (!pos) continue;
         marked.add(error.path);
-        cm.markText(pos.from, pos.to, { className: 'cm-schema-error', title: error.message });
+        const pos = findJsonPathPosition(b.code, error.path);
+        if (pos) {
+            cm.markText(pos.from, pos.to, { className: 'cm-schema-error', title: error.message });
+            continue;
+        }
+        // The field itself isn't in the body (a missing required field) — there's nothing to
+        // underline, so drop a marker on the parent object's line instead.
+        markMissingField(cm, b.code, error);
     }
+}
+
+function markMissingField(cm, code, error) {
+    const parts = jsonPathParts(error.path);
+    const key = parts[parts.length - 1];
+    if (typeof key !== 'string') return;
+    const parentPath = error.path.slice(0, error.path.length - ('.' + key).length);
+    const parentPos = findJsonPathPosition(code, parentPath);
+    const line = parentPos ? parentPos.from.line : 0;
+    const marker = document.createElement('span');
+    marker.className = 'cm-schema-missing';
+    marker.textContent = '⚠ missing "' + key + '"';
+    marker.title = error.message;
+    cm.addLineWidget(line, marker, { coverGutter: false, noHScroll: true });
 }
 
 function findJsonPathPosition(code, path) {
@@ -530,6 +920,43 @@ function mountDetailBodies() {
     detailBodies.forEach((b, i) => renderDetailView(i));
 }
 
+function teardownDetailScrollSpy() {
+    if (detailSpy) { detailSpy.disconnect(); detailSpy = null; }
+}
+
+function mountDetailScrollSpy() {
+    teardownDetailScrollSpy();
+    const jumps = ['overview', 'headers', 'bodies', 'raw'];
+    const sections = jumps
+        .map(j => ({ j, node: document.getElementById('detail-' + j) }))
+        .filter(s => s.node);
+    if (!sections.length) return;
+    const pane = el.detailPane;
+    let active = null;
+    const setActive = (jump) => {
+        if (jump === active) return;
+        active = jump;
+        el.detail.querySelectorAll('.detail-tab').forEach(t =>
+            t.classList.toggle('active', t.dataset.jump === jump));
+    };
+    // Determine the active section: the last section (largest offsetTop) whose top edge is within
+    // the first half of the visible pane. This correctly handles the case where scrollIntoView
+    // cannot scroll all the way (e.g. last section) — the last visible-from-top section wins.
+    const updateActive = () => {
+        const threshold = pane.scrollTop + pane.clientHeight / 2;
+        let best = sections[0];
+        for (const s of sections) {
+            if (s.node.offsetTop <= threshold) best = s;
+        }
+        setActive(best.j);
+    };
+    // Poll via rAF while the spy is alive so it reacts immediately after any scrollIntoView call.
+    let alive = true;
+    const tick = () => { if (!alive) return; updateActive(); requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+    detailSpy = { disconnect() { alive = false; } };
+}
+
 // For WebSocket samples the request body is the frame the client sent (↑) and the response body is
 // what it received (↓); for HTTP keep the plain labels. (Per-frame WS timelines need a direction
 // field on CapturedPacket — a backend change — so this is the honest view from current data.)
@@ -551,6 +978,7 @@ function esc(s) {
 
 // ---- dashboard links ----
 const DASHBOARD_LINKS_KEY = 'listview.dashboardLinks';
+const TRACE_LINKS_KEY = 'listview.traceLinks';
 const DASHBOARD_WINDOW_KEY = 'listview.dashboardWindowMs';
 const DEFAULT_DASHBOARD_WINDOW_MS = 300000;  // ±5 min
 const DASHBOARD_PRESETS = {
@@ -711,6 +1139,7 @@ function normalizeLink(l) {
         scope: l.scope === 'global' ? 'global' : 'packet',
         urlTemplate: String(l.urlTemplate),
         match: l.match || '',
+        source: l.source || 'local',
     };
 }
 
@@ -718,17 +1147,19 @@ function loadDashboardLinks(render = true) {
     try {
         const raw = localStorage.getItem(DASHBOARD_LINKS_KEY);
         const links = raw ? JSON.parse(raw) : [];
-        state.dashboardLinks = Array.isArray(links)
-            ? links.filter(l => l && l.name && l.urlTemplate).map(normalizeLink)
+        state.localDashboardLinks = Array.isArray(links)
+            ? links.filter(l => l && l.name && l.urlTemplate).map(l => normalizeLink({ ...l, source: 'local' }))
             : [];
     } catch (e) {
-        state.dashboardLinks = [];
+        state.localDashboardLinks = [];
     }
+    computeEffectiveDashboardLinks();
     if (render) refreshDashboardViews();
 }
 
 function saveDashboardLinks() {
-    localStorage.setItem(DASHBOARD_LINKS_KEY, JSON.stringify(state.dashboardLinks));
+    localStorage.setItem(DASHBOARD_LINKS_KEY, JSON.stringify(state.localDashboardLinks));
+    computeEffectiveDashboardLinks();
     refreshDashboardViews();
     rerenderSelectedDetail();
 }
@@ -741,23 +1172,65 @@ function refreshDashboardViews() {
 function renderDashboardList() {
     if (!el.dashList) return;
     updateSettingsCounts();
-    if (!state.dashboardLinks.length) {
+    const rows = state.serverDashboardLinks.concat(state.localDashboardLinks);
+    if (!rows.length) {
         el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
         return;
     }
-    el.dashList.innerHTML = state.dashboardLinks.map(link =>
-        '<div class="schema-rule" data-id="' + esc(link.id) + '">'
-        + dashboardSystemIconHtml(link.system)
-        + '<span class="validation-target">' + esc(link.scope) + '</span>'
-        + '<strong>' + esc(link.name) + '</strong>'
-        + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
-        + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>'
-        + '</div>').join('');
+    el.dashList.innerHTML = rows.map(link => {
+        const isServer = link.source === 'server';
+        const disabled = isServer && isServerItemDisabled('dashboard', link.id);
+        const classes = ['schema-rule'];
+        if (isServer) classes.push('server');
+        if (disabled) classes.push('disabled');
+        if (link.id === state.editingDashLinkId) classes.push('editing');
+        return '<div class="' + classes.join(' ') + '" data-id="' + esc(link.id) + '">'
+            + dashboardSystemIconHtml(link.system)
+            + '<span class="validation-target">' + esc(link.scope) + '</span>'
+            + (isServer ? '<span class="validation-target">server</span>' : '')
+            + '<strong>' + esc(link.name) + '</strong>'
+            + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
+            + (isServer
+                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
+                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">Edit</button>'
+                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>')
+            + '</div>';
+    }).join('');
 }
 
 function setDashMessage(text, ok) {
     el.dashMessage.textContent = text;
     el.dashMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function startEditDashboardLink(id) {
+    const link = state.localDashboardLinks.find(l => l.id === id);
+    if (!link) return;
+    state.editingDashLinkId = id;
+    el.dashName.value = link.name;
+    el.dashSystem.value = link.system;
+    el.dashScope.value = link.scope;
+    el.dashUrl.value = link.urlTemplate;
+    el.dashMatch.value = link.match || '';
+    updateDashboardSystemPreview();
+    updateDashboardTemplatePreview();
+    el.dashSave.textContent = 'Update';
+    el.dashCancelEdit.hidden = false;
+    setDashMessage('Editing "' + link.name + '"', true);
+    renderDashboardList();
+    el.dashName.focus();
+}
+
+function cancelEditDashboardLink() {
+    state.editingDashLinkId = null;
+    el.dashName.value = '';
+    el.dashUrl.value = '';
+    el.dashMatch.value = '';
+    updateDashboardTemplatePreview();
+    el.dashSave.textContent = 'Save';
+    el.dashCancelEdit.hidden = true;
+    setDashMessage('', true);
+    renderDashboardList();
 }
 
 function packetDashboardLinks(packet) {
@@ -798,15 +1271,63 @@ function mountDashboardLinks(packet) {
     links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
 }
 
+function loadTraceLinks(render = true) {
+    let stored = null;
+    try {
+        const raw = localStorage.getItem(TRACE_LINKS_KEY);
+        if (raw !== null) stored = JSON.parse(raw);
+    } catch (e) { stored = null; }
+    if (stored === null) {
+        // seed a sensible default the user can edit (real SignalFX realm/org filled in later).
+        state.traceLinks = [{ header: 'x-b3-traceid', urlTemplate: 'https://app.signalfx.com/#/apm/traces/{value}' }];
+    } else {
+        state.traceLinks = Array.isArray(stored)
+            ? stored.filter(t => t && t.header && t.urlTemplate) : [];
+    }
+    if (render) renderTraceLinks();
+}
+
+function saveTraceLinks() {
+    localStorage.setItem(TRACE_LINKS_KEY, JSON.stringify(state.traceLinks));
+    renderTraceLinks();
+    rerenderSelectedDetail();
+}
+
+function renderTraceLinks() {
+    if (!el.traceList) return;
+    if (el.traceCount) el.traceCount.textContent = String(state.traceLinks.length);
+    if (!state.traceLinks.length) {
+        el.traceList.innerHTML = '<div class="schema-empty">No trace links.</div>';
+        return;
+    }
+    el.traceList.innerHTML = state.traceLinks.map((t, i) =>
+        '<div class="schema-rule" data-trace="' + i + '">'
+        + '<span class="validation-target">' + esc(t.header) + '</span>'
+        + '<code>' + esc(t.urlTemplate) + '</code>'
+        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">Delete</button>'
+        + '</div>').join('');
+}
+
+function traceLinkFor(headerName) {
+    const n = String(headerName).toLowerCase();
+    const hit = state.traceLinks.find(t => t.header.toLowerCase() === n);
+    return hit ? hit.urlTemplate : null;
+}
+
+function buildTraceUrl(template, value) {
+    const href = String(template).replace(/\{value\}/g, encodeURIComponent(value));
+    return /^https?:\/\//i.test(href) ? href : null;
+}
+
 function loadSettingsTab() {
     const stored = localStorage.getItem(SETTINGS_TAB_KEY);
-    setSettingsTab(['dashboards', 'language'].includes(stored) ? stored : 'schema', false);
+    setSettingsTab(['dashboards', 'language', 'trace'].includes(stored) ? stored : 'schema', false);
 }
 
 function setSettingsTab(tab, persist = true) {
-    state.settingsTab = ['dashboards', 'language'].includes(tab) ? tab : 'schema';
+    state.settingsTab = ['dashboards', 'language', 'trace'].includes(tab) ? tab : 'schema';
     if (persist) localStorage.setItem(SETTINGS_TAB_KEY, state.settingsTab);
-    [el.schemaPanel, el.dashboardPanel, document.getElementById('language-panel')].forEach(panel => {
+    [el.schemaPanel, el.dashboardPanel, document.getElementById('trace-panel'), document.getElementById('language-panel')].forEach(panel => {
         if (panel) panel.hidden = panel.id !== state.settingsTabPanelId;
     });
     el.settingsTabs.forEach(tabEl => {
@@ -820,6 +1341,7 @@ Object.defineProperty(state, 'settingsTabPanelId', {
     get() {
         if (state.settingsTab === 'dashboards') return 'dashboard-panel';
         if (state.settingsTab === 'language') return 'language-panel';
+        if (state.settingsTab === 'trace') return 'trace-panel';
         return 'schema-panel';
     }
 });
@@ -830,6 +1352,8 @@ function focusActiveSettingsField() {
     } else if (state.settingsTab === 'language') {
         const active = document.querySelector('.language-option.active');
         if (active) active.focus();
+    } else if (state.settingsTab === 'trace') {
+        el.traceHeader.focus();
     } else {
         el.schemaPattern.focus();
     }
@@ -869,8 +1393,9 @@ function updateSettingsCounts() {
     if (el.dashboardCount) el.dashboardCount.textContent = String(state.dashboardLinks.length);
 }
 
-function setStatus(text, kind) {
-    el.status.textContent = text;
+function setStatus(text, kind, runId) {
+    el.status.textContent = runId ? text + ' · #' + shortId(runId) : text;
+    el.status.title = runId || '';
     el.status.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'err' ? 'var(--err)' : kind === 'run' ? 'var(--accent)' : 'var(--muted)';
 }
 
@@ -878,32 +1403,53 @@ function loadSchemaRules(render = true) {
     try {
         const raw = localStorage.getItem(SCHEMA_RULES_KEY);
         const rules = raw ? JSON.parse(raw) : [];
-        state.schemaRules = Array.isArray(rules) ? rules.filter(r => r && r.pattern && r.target && r.schema) : [];
+        state.localSchemaRules = Array.isArray(rules)
+            ? rules.filter(r => r && r.pattern && r.target && r.schema).map(r => normalizeSchemaRule(r, 'local'))
+            : [];
     } catch (e) {
-        state.schemaRules = [];
+        state.localSchemaRules = [];
     }
+    computeEffectiveSchemaRules();
     if (render) renderSchemaRules();
 }
 
 function saveSchemaRules() {
-    localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.schemaRules));
+    localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.localSchemaRules));
+    computeEffectiveSchemaRules();
     renderSchemaRules();
     rerenderSelectedDetail();
 }
 
 function renderSchemaRules() {
+    renderUrlSchemaSources();
     if (!el.schemaList) return;
     updateSettingsCounts();
-    if (!state.schemaRules.length) {
+    const rows = allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules);
+    if (!rows.length) {
         el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
         return;
     }
-    el.schemaList.innerHTML = state.schemaRules.map(rule =>
-        '<div class="schema-rule" data-id="' + esc(rule.id) + '">'
-        + '<span class="validation-target">' + esc(rule.target) + '</span>'
-        + '<code>' + esc(rule.pattern) + '</code>'
-        + '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>'
-        + '</div>').join('');
+    el.schemaList.innerHTML = rows.map(rule => {
+        const isRemote = rule.source !== 'local';
+        const disabled = isRemote && isServerItemDisabled('schema', rule.id);
+        const classes = ['schema-rule'];
+        if (isRemote) classes.push('server');
+        if (disabled) classes.push('disabled');
+        if (rule.overridden) classes.push('overridden');
+        if (rule.id === state.editingSchemaRuleId) classes.push('editing');
+        return '<div class="' + classes.join(' ') + '" data-id="' + esc(rule.id) + '">'
+            + '<span class="validation-target">' + esc(rule.target) + '</span>'
+            + (isRemote ? '<span class="validation-target">' + (rule.source === 'url' ? 'url' : 'server') + '</span>' : '')
+            + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
+            + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
+            + '<code>' + esc(rule.pattern) + '</code>'
+            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">Edit</button>'
+            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">Reset</button>' : '')
+            + (isRemote
+                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
+                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>')
+            + '</div>';
+    }).join('');
 }
 
 function setSchemaMessage(text, ok) {
@@ -911,9 +1457,41 @@ function setSchemaMessage(text, ok) {
     el.schemaMessage.className = 'schema-message' + (ok ? ' ok' : '');
 }
 
+function startEditSchemaRule(id) {
+    const rule = findSchemaRuleById(id);
+    if (!rule) return;
+    state.editingSchemaRuleId = id;
+    el.schemaName.value = rule.name || '';
+    el.schemaPattern.value = rule.pattern;
+    el.schemaTarget.value = rule.target;
+    el.schemaJson.value = JSON.stringify(rule.schema, null, 2);
+    el.schemaSave.textContent = 'Update';
+    el.schemaCancelEdit.hidden = false;
+    setSchemaMessage('Editing "' + (rule.name || rule.pattern) + '"', true);
+    renderSchemaRules();
+    el.schemaPattern.focus();
+}
+
+function cancelEditSchemaRule() {
+    state.editingSchemaRuleId = null;
+    el.schemaName.value = '';
+    el.schemaPattern.value = '';
+    el.schemaJson.value = '';
+    el.schemaSave.textContent = 'Save';
+    el.schemaCancelEdit.hidden = true;
+    setSchemaMessage('', true);
+    renderSchemaRules();
+}
+
 function rerenderSelectedDetail() {
     if (state.selectedId == null) return;
     renderDetail(state.packets.find(p => p.id === state.selectedId));
+}
+
+function bodyValidationState(validation, target) {
+    const matched = validation.results.filter(r => r.target === target);
+    if (!matched.length) return null;
+    return matched.some(r => r.errors.length) ? 'invalid' : 'valid';
 }
 
 function validatePacket(packet) {
@@ -1058,28 +1636,43 @@ el.form.addEventListener('submit', async (ev) => {
 el.demo.addEventListener('click', async () => {
     ensureStream();
     const r = await fetch('/api/runs/demo', { method: 'POST' });
-    afterStart(await r.json());
+    await afterStart(await r.json());
     setRunPanel(false);
 });
 
 el.stop.addEventListener('click', async () => {
-    if (!state.currentRunId) return;
-    await fetch('/api/runs/' + state.currentRunId + '/stop', { method: 'POST' });
-    setStatus('stopping…');
+    if (!state.activeRunId) return;
+    await fetch('/api/runs/' + state.activeRunId + '/stop', { method: 'POST' });
+    setStatus('stopping…', 'run', state.activeRunId);
 });
 
 el.clear.addEventListener('click', async () => {
     if (!window.confirm('Clear all captured packets?')) return;
     state.packets = [];
+    state.runs = [];
     state.seen = new Set();
     state.selectedId = null;
+    state.selectedRunId = null;
+    state.activeRunId = null;
     state.maxElapsed = 1;
     el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
+    renderRunList();
     renderDetail(null);
     closeDetail();
     try { await fetch('/api/packets', { method: 'DELETE' }); } catch (e) { /* ignore */ }
 });
+
+if (el.runAll) {
+    el.runAll.addEventListener('click', () => { selectRun(null); });
+}
+if (el.runList) {
+    el.runList.addEventListener('click', (ev) => {
+        const bt = ev.target.closest('.run-chip[data-run-id]');
+        if (!bt) return;
+        selectRun(bt.dataset.runId);
+    });
+}
 
 el.settingsToggle.addEventListener('click', () => {
     if (el.settingsView.hidden) {
@@ -1116,25 +1709,102 @@ el.schemaSave.addEventListener('click', () => {
         setSchemaMessage('Schema must be a JSON object', false);
         return;
     }
-    state.schemaRules.push({
-        id: String(Date.now()) + '-' + Math.random().toString(16).slice(2),
-        pattern,
-        target: el.schemaTarget.value === 'request' ? 'request' : 'response',
-        schema,
-    });
+    const name = el.schemaName.value.trim();
+    const target = el.schemaTarget.value === 'request' ? 'request' : 'response';
+    const editingId = state.editingSchemaRuleId;
+    if (editingId) {
+        if (state.localSchemaRules.some(r => r.id === editingId)) {
+            state.localSchemaRules = state.localSchemaRules.map(r =>
+                r.id === editingId ? normalizeSchemaRule({ id: editingId, name, pattern, target, schema }, 'local') : r);
+            saveSchemaRules();
+        } else {
+            // server/url-sourced rule: the edit becomes a local override, not a mutation of the
+            // cached remote copy, so refreshing/reloading that source can never silently drop it.
+            state.schemaOverrides[editingId] = { name, pattern, target, schema };
+            saveSchemaOverrides();
+            computeEffectiveSchemaRules();
+            renderSchemaRules();
+            rerenderSelectedDetail();
+        }
+        state.editingSchemaRuleId = null;
+        el.schemaSave.textContent = 'Save';
+        el.schemaCancelEdit.hidden = true;
+        setSchemaMessage('Updated', true);
+    } else {
+        state.localSchemaRules.push(normalizeSchemaRule({ name, pattern, target, schema }, 'local'));
+        setSchemaMessage('Saved', true);
+        saveSchemaRules();
+    }
+    el.schemaName.value = '';
     el.schemaPattern.value = '';
     el.schemaJson.value = '';
-    setSchemaMessage('Saved', true);
-    saveSchemaRules();
 });
+el.schemaCancelEdit.addEventListener('click', cancelEditSchemaRule);
 
 el.schemaList.addEventListener('click', (ev) => {
+    const toggle = ev.target.closest('.schema-toggle-server');
+    if (toggle) {
+        toggleServerItem('schema', toggle.dataset.id);
+        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        return;
+    }
+    const resetBt = ev.target.closest('.schema-reset');
+    if (resetBt) {
+        delete state.schemaOverrides[resetBt.dataset.id];
+        saveSchemaOverrides();
+        if (state.editingSchemaRuleId === resetBt.dataset.id) cancelEditSchemaRule();
+        computeEffectiveSchemaRules();
+        renderSchemaRules();
+        rerenderSelectedDetail();
+        setSchemaMessage('Reset to server version', true);
+        return;
+    }
+    const editBt = ev.target.closest('.schema-edit');
+    if (editBt) { startEditSchemaRule(editBt.dataset.id); return; }
     const bt = ev.target.closest('.schema-delete');
     if (!bt) return;
-    state.schemaRules = state.schemaRules.filter(rule => rule.id !== bt.dataset.id);
+    if (state.editingSchemaRuleId === bt.dataset.id) cancelEditSchemaRule();
+    state.localSchemaRules = state.localSchemaRules.filter(rule => rule.id !== bt.dataset.id);
     setSchemaMessage('Deleted', true);
     saveSchemaRules();
 });
+
+if (el.schemaRemoteLoad) {
+    el.schemaRemoteLoad.addEventListener('click', async () => {
+        const url = el.schemaRemoteUrl.value.trim();
+        if (!url) { setSchemaRemoteMessage('URL is required', false); return; }
+        if (!/^https?:\/\//i.test(url)) { setSchemaRemoteMessage('URL must be http(s)', false); return; }
+        setSchemaRemoteMessage('Loading…', true);
+        try {
+            await loadSchemaRulesFromUrl(url);
+            el.schemaRemoteUrl.value = '';
+            setSchemaRemoteMessage('Loaded', true);
+        } catch (e) {
+            setSchemaRemoteMessage('Failed to load: ' + e.message, false);
+        }
+    });
+}
+if (el.schemaRemoteSources) {
+    el.schemaRemoteSources.addEventListener('click', async (ev) => {
+        const refresh = ev.target.closest('.schema-source-refresh');
+        if (refresh) {
+            setSchemaRemoteMessage('Refreshing…', true);
+            try {
+                await loadSchemaRulesFromUrl(refresh.dataset.url);
+                setSchemaRemoteMessage('Refreshed', true);
+            } catch (e) {
+                setSchemaRemoteMessage('Failed to refresh: ' + e.message, false);
+            }
+            return;
+        }
+        const remove = ev.target.closest('.schema-source-remove');
+        if (remove) {
+            state.urlSchemaSources = state.urlSchemaSources.filter(s => s.url !== remove.dataset.url);
+            saveUrlSchemaSources();
+            setSchemaRemoteMessage('Removed', true);
+        }
+    });
+}
 
 // ---- dashboard links panel ----
 el.dashPreset.addEventListener('change', () => {
@@ -1159,23 +1829,66 @@ el.dashSave.addEventListener('click', () => {
     const urlTemplate = el.dashUrl.value.trim();
     if (!name) { setDashMessage('Name is required', false); return; }
     if (!urlTemplate) { setDashMessage('URL template is required', false); return; }
-    state.dashboardLinks.push(normalizeLink({
+    const fields = {
         name, system: el.dashSystem.value, scope: el.dashScope.value,
         urlTemplate, match: el.dashMatch.value.trim(),
-    }));
+    };
+    if (state.editingDashLinkId) {
+        const id = state.editingDashLinkId;
+        state.localDashboardLinks = state.localDashboardLinks.map(l =>
+            l.id === id ? normalizeLink({ ...fields, id, source: 'local' }) : l);
+        state.editingDashLinkId = null;
+        el.dashSave.textContent = 'Save';
+        el.dashCancelEdit.hidden = true;
+        setDashMessage('Updated', true);
+    } else {
+        state.localDashboardLinks.push(normalizeLink(fields));
+        setDashMessage('Saved', true);
+    }
     el.dashName.value = '';
     el.dashUrl.value = '';
     el.dashMatch.value = '';
-    setDashMessage('Saved', true);
     saveDashboardLinks();
 });
+el.dashCancelEdit.addEventListener('click', cancelEditDashboardLink);
 el.dashList.addEventListener('click', (ev) => {
+    const toggle = ev.target.closest('.dash-toggle-server');
+    if (toggle) {
+        toggleServerItem('dashboard', toggle.dataset.id);
+        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        return;
+    }
+    const editBt = ev.target.closest('.dash-edit');
+    if (editBt) { startEditDashboardLink(editBt.dataset.id); return; }
     const bt = ev.target.closest('.dash-delete');
     if (!bt) return;
-    state.dashboardLinks = state.dashboardLinks.filter(l => l.id !== bt.dataset.id);
+    if (state.editingDashLinkId === bt.dataset.id) cancelEditDashboardLink();
+    state.localDashboardLinks = state.localDashboardLinks.filter(l => l.id !== bt.dataset.id);
     setDashMessage('Deleted', true);
     saveDashboardLinks();
 });
+
+// ---- trace links panel ----
+if (el.traceSave) {
+    el.traceSave.addEventListener('click', () => {
+        const header = el.traceHeader.value.trim();
+        const urlTemplate = el.traceUrl.value.trim();
+        if (!header || !urlTemplate) { el.traceMessage.textContent = 'Header and URL template are required.'; el.traceMessage.className = 'schema-message'; return; }
+        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = 'URL template must be http(s) and contain {value}.'; el.traceMessage.className = 'schema-message'; return; }
+        state.traceLinks.push({ header, urlTemplate });
+        saveTraceLinks();
+        el.traceHeader.value = ''; el.traceUrl.value = '';
+        el.traceMessage.textContent = 'Saved.'; el.traceMessage.className = 'schema-message ok';
+    });
+}
+if (el.traceList) {
+    el.traceList.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.trace-delete');
+        if (!btn) return;
+        state.traceLinks.splice(Number(btn.dataset.trace), 1);
+        saveTraceLinks();
+    });
+}
 
 // ---- detail drawer + keyboard navigation ----
 el.detailClose.addEventListener('click', closeDetail);
@@ -1343,12 +2056,21 @@ async function startRun(payload) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
     });
-    afterStart(await r.json());
+    await afterStart(await r.json());
 }
 
-function afterStart(status) {
-    state.currentRunId = status.id;
-    setStatus('running…', 'run');
+async function afterStart(status) {
+    state.activeRunId = status.id;
+    state.selectedRunId = status.id;
+    for (const packet of state.packets) {
+        if (!packet.runId) {
+            packet.runId = status.id;
+        }
+    }
+    await loadRuns();
+    renderRunList();
+    await loadRecent();
+    setStatus('running…', 'run', status.id);
     el.stop.disabled = false;
     pollStatus(status.id);
 }
@@ -1359,14 +2081,19 @@ function pollStatus(id) {
         if (!r.ok) return;
         const s = await r.json();
         if (s.state === 'RUNNING') {
-            setStatus('running… ' + s.capturedSamples + ' samples', 'run');
+            setStatus('running… ' + s.capturedSamples + ' samples', 'run', id);
             return;
         }
         clearInterval(handle);
+        if (state.activeRunId === id) state.activeRunId = null;
+        await loadRuns();
+        if (!state.selectedRunId || state.selectedRunId === id) {
+            await loadRecent();
+        }
         el.stop.disabled = true;
-        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok');
-        else if (s.state === 'FAILED') setStatus('failed', 'err');
-        else setStatus(s.state, 'muted');
+        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok', id);
+        else if (s.state === 'FAILED') setStatus('failed', 'err', id);
+        else setStatus(s.state, 'muted', id);
     }, 1000);
 }
 
@@ -1538,14 +2265,14 @@ function loadFilters() {
 
 function rebuildList() {
     el.tbody.innerHTML = '';
-    let rows = state.packets.filter(matchesFilter);
+    let rows = visiblePackets().filter(matchesFilter);
     if (state.sort.key) {
         const dir = state.sort.dir === 'desc' ? -1 : 1;
         rows = rows.slice().sort((a, b) => comparePackets(a, b, state.sort.key) * dir);
     }
     for (const p of rows) appendRow(p);
     updateCount(rows.length);
-    if (rows.length === 0 && state.packets.length > 0) showEmptyRow();
+    if (rows.length === 0 && visiblePackets().length > 0) showEmptyRow();
 }
 
 function comparePackets(a, b, key) {
@@ -1591,7 +2318,7 @@ function updateSortIndicators() {
 }
 
 function updateCount(shown) {
-    const total = state.packets.length;
+    const total = visiblePackets().length;
     el.count.textContent = (shown === total) ? total + ' packets' : shown + ' / ' + total + ' packets';
 }
 
@@ -1622,11 +2349,17 @@ loadSettingsTab();
 loadLanguage();
 updateDashboardSystemPreview();
 updateDashboardTemplatePreview();
-loadSchemaRules();
+loadDisabledServerItems();
+loadSchemaOverrides();
+loadUrlSchemaSources(false);
+loadSchemaRules(false);
+loadTraceLinks();
 const storedDashWin = Number(localStorage.getItem(DASHBOARD_WINDOW_KEY));
 if (el.dashWindow && storedDashWin > 0) el.dashWindow.value = String(Math.round(storedDashWin / 60000));
-loadDashboardLinks();
+loadDashboardLinks(false);
+loadServerConfig();
 // open the SSE stream immediately so demo/manual runs are captured
 ensureStream();
+loadRuns();
 // backfill any packets captured before the page was opened (e.g. an external jmeter-dsl test)
 loadRecent();

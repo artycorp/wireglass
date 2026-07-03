@@ -7,6 +7,7 @@ public class ListViewProperties {
 
     private int ringBufferSize = 5000;
     private int maxBodyBytes = 262144;
+    private String remoteConfigUrl;
 
     public int getRingBufferSize() {
         return ringBufferSize;
@@ -22,5 +23,13 @@ public class ListViewProperties {
 
     public void setMaxBodyBytes(int maxBodyBytes) {
         this.maxBodyBytes = maxBodyBytes;
+    }
+
+    public String getRemoteConfigUrl() {
+        return remoteConfigUrl;
+    }
+
+    public void setRemoteConfigUrl(String remoteConfigUrl) {
+        this.remoteConfigUrl = remoteConfigUrl;
     }
 }

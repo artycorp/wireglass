@@ -1,6 +1,7 @@
 package com.artembelikov.listview.client.capture;
 
 import java.util.List;
+import java.util.UUID;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.visualizers.SimpleDataWriter;
 import us.abstracta.jmeter.javadsl.core.listeners.BaseListener;
@@ -28,24 +29,34 @@ public class TrafficCaptureClient extends BaseListener implements DslListener {
 
     private final String serverUrl;
     private final int maxBodyBytes;
+    private final UUID runId;
 
     public TrafficCaptureClient(String serverUrl) {
-        this(serverUrl, DEFAULT_MAX_BODY_BYTES);
+        this(serverUrl, DEFAULT_MAX_BODY_BYTES, null);
     }
 
     public TrafficCaptureClient(String serverUrl, int maxBodyBytes) {
+        this(serverUrl, maxBodyBytes, null);
+    }
+
+    public TrafficCaptureClient(String serverUrl, int maxBodyBytes, UUID runId) {
         super("Traffic Capture Client", SimpleDataWriter.class);
         this.serverUrl = serverUrl;
         this.maxBodyBytes = maxBodyBytes;
+        this.runId = runId;
     }
 
     public static TrafficCaptureClient trafficCaptureClient(String serverUrl) {
         return new TrafficCaptureClient(serverUrl);
     }
 
+    public TrafficCaptureClient withRunId(UUID runId) {
+        return new TrafficCaptureClient(serverUrl, maxBodyBytes, runId);
+    }
+
     @Override
     public TestElement buildTestElement() {
-        return new CapturingReporter(new WsSink(serverUrl), defaultExtractors(), maxBodyBytes);
+        return new CapturingReporter(new WsSink(serverUrl, runId), defaultExtractors(), maxBodyBytes);
     }
 
     private static List<com.artembelikov.listview.client.protocol.PacketExtractor> defaultExtractors() {

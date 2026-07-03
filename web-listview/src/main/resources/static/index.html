@@ -65,6 +65,10 @@
 <section class="bodygrid" id="bodygrid">
     <div class="pane listpane">
         <div class="pane-toolbar">
+            <div class="runs-toolbar">
+                <button type="button" id="run-all" class="run-chip active">All runs</button>
+                <div id="run-list" class="run-list"></div>
+            </div>
             <div class="facets">
                 <div class="facet-group" role="group" aria-label="Type">
                     <span class="facet-label">type</span>
@@ -113,9 +117,21 @@
         </div>
         <div class="table-wrap">
             <table id="packet-table">
+                <colgroup>
+                    <col class="c-idx"/>
+                    <col class="c-valid"/>
+                    <col class="c-time"/>
+                    <col class="c-type"/>
+                    <col class="c-method"/>
+                    <col class="c-url"/>
+                    <col class="c-status"/>
+                    <col class="c-latency"/>
+                    <col class="c-size"/>
+                </colgroup>
                 <thead>
                 <tr>
                     <th class="c-idx">#</th>
+                    <th class="c-valid" title="Schema validation"></th>
                     <th class="c-time sortable" data-sort="time" aria-sort="none">time</th>
                     <th class="c-type sortable" data-sort="type" aria-sort="none">type</th>
                     <th class="c-method sortable" data-sort="method" aria-sort="none">method</th>
@@ -159,11 +175,17 @@
                 <button type="button" class="settings-tab" id="settings-tab-dashboards"
                         role="tab" aria-selected="false" aria-controls="dashboard-panel"
                         data-settings-tab="dashboards">Dashboards <span id="dashboard-count">0</span></button>
+                <button type="button" class="settings-tab" id="settings-tab-trace"
+                        role="tab" aria-selected="false" aria-controls="trace-panel"
+                        data-settings-tab="trace">Trace links <span id="trace-count">0</span></button>
                 <button type="button" class="settings-tab" id="settings-tab-language"
                         role="tab" aria-selected="false" aria-controls="language-panel"
                         data-settings-tab="language">Language</button>
             </div>
             <div class="schema-panel settings-pane" id="schema-panel" role="tabpanel" aria-labelledby="settings-tab-schema">
+                <label class="schema-field">Name (optional)
+                    <input id="schema-name" type="text" placeholder="User response shape"/>
+                </label>
                 <label class="schema-field pattern">URL pattern
                     <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
                 </label>
@@ -178,9 +200,20 @@
                 </label>
                 <div class="schema-actions">
                     <button type="button" id="schema-save" class="primary">Save</button>
+                    <button type="button" id="schema-cancel-edit" class="mini" hidden>Cancel</button>
                     <span id="schema-message" class="schema-message" role="status"></span>
                 </div>
                 <div id="schema-list" class="schema-list"></div>
+                <div class="schema-remote">
+                    <label class="schema-field pattern">Load rules from URL
+                        <input id="schema-remote-url" type="text" placeholder="https://example.com/wireglass-rules.json"/>
+                    </label>
+                    <div class="schema-actions">
+                        <button type="button" id="schema-remote-load" class="mini">Load</button>
+                        <span id="schema-remote-message" class="schema-message" role="status"></span>
+                    </div>
+                    <div id="schema-remote-sources" class="schema-list"></div>
+                </div>
             </div>
             <div class="schema-panel settings-pane" id="dashboard-panel" role="tabpanel" aria-labelledby="settings-tab-dashboards" hidden>
                 <label class="schema-field">Name
@@ -223,9 +256,23 @@
                 </label>
                 <div class="schema-actions dashboard-actions">
                     <button type="button" id="dash-save" class="primary">Save</button>
+                    <button type="button" id="dash-cancel-edit" class="mini" hidden>Cancel</button>
                     <span id="dash-message" class="schema-message" role="status"></span>
                 </div>
                 <div id="dash-list" class="schema-list"></div>
+            </div>
+            <div class="schema-panel settings-pane" id="trace-panel" role="tabpanel" aria-labelledby="settings-tab-trace" hidden>
+                <label class="schema-field">Header
+                    <input id="trace-header" type="text" placeholder="x-b3-traceid"/>
+                </label>
+                <label class="schema-field pattern">URL template
+                    <input id="trace-url" type="text" placeholder="https://app.signalfx.com/#/apm/traces/{value}"/>
+                </label>
+                <div class="schema-actions">
+                    <button type="button" id="trace-save" class="primary">Save</button>
+                    <span id="trace-message" class="schema-message" role="status"></span>
+                </div>
+                <div id="trace-list" class="schema-list"></div>
             </div>
             <div class="language-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
                 <div class="language-options" role="group" aria-label="Interface language">
@@ -240,6 +287,7 @@
 <template id="row-template">
     <tr class="pkt">
         <td class="c-idx"></td>
+        <td class="c-valid"></td>
         <td class="c-time"></td>
         <td class="c-type"></td>
         <td class="c-method"></td>
