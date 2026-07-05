@@ -18,12 +18,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import us.abstracta.jmeter.javadsl.JmeterDsl;
@@ -43,13 +45,17 @@ class TrafficInspectorE2EIT {
     @LocalServerPort
     private int appPort;
 
+    private String originalUserHome;
     private Playwright playwright;
     private Browser browser;
     private HttpServer echoServer;
     private int echoPort;
 
     @BeforeAll
-    void setUp() throws IOException {
+    void setUp(@TempDir Path isolatedHome) throws IOException {
+        originalUserHome = System.getProperty("user.home");
+        System.setProperty("user.home", isolatedHome.toString());
+
         echoServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         echoServer.createContext("/", this::echo);
         echoServer.createContext("/html", this::echoHtml);
@@ -108,14 +114,18 @@ class TrafficInspectorE2EIT {
 
     @AfterAll
     void tearDown() {
-        if (browser != null) {
-            browser.close();
-        }
-        if (playwright != null) {
-            playwright.close();
-        }
-        if (echoServer != null) {
-            echoServer.stop(0);
+        try {
+            if (browser != null) {
+                browser.close();
+            }
+            if (playwright != null) {
+                playwright.close();
+            }
+            if (echoServer != null) {
+                echoServer.stop(0);
+            }
+        } finally {
+            System.setProperty("user.home", originalUserHome);
         }
     }
 
