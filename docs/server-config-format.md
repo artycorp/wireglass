@@ -66,3 +66,16 @@ Each `dashboards[]` item must contain:
 - `scope`: `packet` or `global`.
 - `urlTemplate`: same template syntax as local dashboard links.
 - `match`: optional packet URL matcher, used only for `packet` scope.
+
+## Local file source
+
+In addition to the server-hosted file above, Wireglass automatically reads a local file at
+`~/.wireglass/dashboards.json` on every load — no flag required. If the file doesn't exist yet, it
+is created with an empty template (`{"version":1,"schemas":[],"dashboards":[]}`) the first time
+it's read, so a fresh install has something to edit immediately.
+
+The local file uses the exact same format as the server-hosted file, for both `schemas[]` and
+`dashboards[]`. If both a local file and `app.listview.remote-config-url` are configured, they are
+merged by `id` — **the local file wins on id collisions.** This lets a single Wireglass install
+have its own dashboards/schemas configured with zero setup, while still supporting a centralized
+server config for a shared install.

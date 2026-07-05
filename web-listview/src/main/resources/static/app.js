@@ -163,7 +163,7 @@ function toggleServerItem(kind, id) {
     rebuildEffectiveRules();
 }
 
-function normalizeSchemaRule(rule, source, sourceUrl) {
+function normalizeSchemaRule(rule, source, sourceUrl, origin) {
     return {
         id: String(rule.id || (String(Date.now()) + '-' + Math.random().toString(16).slice(2))),
         name: rule.name ? String(rule.name) : '',
@@ -172,6 +172,7 @@ function normalizeSchemaRule(rule, source, sourceUrl) {
         schema: rule.schema,
         source: source || 'local',
         sourceUrl: sourceUrl || null,
+        origin: origin || null,
     };
 }
 
@@ -184,6 +185,7 @@ function normalizeRemoteDashboardLink(link) {
         urlTemplate: String(link.urlTemplate),
         match: link.match || '',
         source: 'server',
+        origin: link.origin || null,
     });
 }
 
@@ -239,7 +241,7 @@ async function loadServerConfig() {
         const config = await res.json();
         state.serverSchemaRules = Array.isArray(config.schemas)
             ? config.schemas.filter(r => r && r.id && r.pattern && r.target && r.schema)
-                .map(r => normalizeSchemaRule(r, 'server'))
+                .map(r => normalizeSchemaRule(r, 'server', null, r.origin))
             : [];
         state.serverDashboardLinks = Array.isArray(config.dashboards)
             ? config.dashboards.filter(l => l && l.id && l.name && l.urlTemplate)
@@ -1140,6 +1142,7 @@ function normalizeLink(l) {
         urlTemplate: String(l.urlTemplate),
         match: l.match || '',
         source: l.source || 'local',
+        origin: l.origin || null,
     };
 }
 
@@ -1169,6 +1172,10 @@ function refreshDashboardViews() {
     renderGlobalLinks();
 }
 
+function dashboardBadgeLabel(link) {
+    return link.origin === 'local' ? 'local file' : 'server';
+}
+
 function renderDashboardList() {
     if (!el.dashList) return;
     updateSettingsCounts();
@@ -1187,7 +1194,7 @@ function renderDashboardList() {
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(link.id) + '">'
             + dashboardSystemIconHtml(link.system)
             + '<span class="validation-target">' + esc(link.scope) + '</span>'
-            + (isServer ? '<span class="validation-target">server</span>' : '')
+            + (isServer ? '<span class="validation-target">' + dashboardBadgeLabel(link) + '</span>' : '')
             + '<strong>' + esc(link.name) + '</strong>'
             + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
             + (isServer
@@ -1420,6 +1427,11 @@ function saveSchemaRules() {
     rerenderSelectedDetail();
 }
 
+function schemaBadgeLabel(rule) {
+    if (rule.origin === 'local') return 'local file';
+    return rule.source === 'url' ? 'url' : 'server';
+}
+
 function renderSchemaRules() {
     renderUrlSchemaSources();
     if (!el.schemaList) return;
@@ -1439,7 +1451,7 @@ function renderSchemaRules() {
         if (rule.id === state.editingSchemaRuleId) classes.push('editing');
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(rule.id) + '">'
             + '<span class="validation-target">' + esc(rule.target) + '</span>'
-            + (isRemote ? '<span class="validation-target">' + (rule.source === 'url' ? 'url' : 'server') + '</span>' : '')
+            + (isRemote ? '<span class="validation-target">' + schemaBadgeLabel(rule) + '</span>' : '')
             + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
             + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
             + '<code>' + esc(rule.pattern) + '</code>'
