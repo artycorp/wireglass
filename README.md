@@ -152,4 +152,8 @@ shows request/response bodies, and the filter hides non-matching packets.
 
 ## Server-provided rules and dashboards
 
-The app can load read-only JSON Schema rules and dashboard links from a server-hosted JSON file configured by `app.listview.remote-config-url`. The expected file format is documented in [`docs/server-config-format.md`](docs/server-config-format.md).
+The app can load read-only JSON Schema rules and dashboard links from two sources, merged together
+(local wins on `id` collisions): a local file at `~/.wireglass/dashboards.json`, read automatically
+with no configuration and auto-created empty on first run, and a server-hosted JSON file configured
+by `app.listview.remote-config-url` — useful for a shared/centralized install. Both use the same
+format, documented in [`docs/server-config-format.md`](docs/server-config-format.md).
