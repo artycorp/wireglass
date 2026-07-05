@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "schemas": [
+    {
+      "id": "shared-schema",
+      "name": "Remote version of shared schema",
+      "pattern": "/",
+      "target": "response",
+      "schema": { "type": "object", "required": ["fromRemote"] }
+    },
+    {
+      "id": "remote-only-schema",
+      "name": "Remote-only schema",
+      "pattern": "/",
+      "target": "response",
+      "schema": { "type": "object", "required": ["remoteField"] }
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "shared-dashboard",
+      "name": "Remote version of shared dashboard",
+      "system": "grafana",
+      "scope": "global",
+      "urlTemplate": "http://remote.example/dash"
+    },
+    {
+      "id": "remote-only-dashboard",
+      "name": "Remote-only dashboard",
+      "system": "grafana",
+      "scope": "global",
+      "urlTemplate": "http://remote.example/dash2"
+    }
+  ]
+}

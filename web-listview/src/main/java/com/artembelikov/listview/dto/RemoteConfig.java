@@ -41,7 +41,12 @@ public record RemoteConfig(
             String name,
             String pattern,
             String target,
-            JsonNode schema) {
+            JsonNode schema,
+            String origin) {
+
+        public RemoteSchemaRule withOrigin(String newOrigin) {
+            return new RemoteSchemaRule(id, name, pattern, target, schema, newOrigin);
+        }
     }
 
     public record RemoteDashboardLink(
@@ -50,6 +55,11 @@ public record RemoteConfig(
             String system,
             String scope,
             String urlTemplate,
-            String match) {
+            String match,
+            String origin) {
+
+        public RemoteDashboardLink withOrigin(String newOrigin) {
+            return new RemoteDashboardLink(id, name, system, scope, urlTemplate, match, newOrigin);
+        }
     }
 }
