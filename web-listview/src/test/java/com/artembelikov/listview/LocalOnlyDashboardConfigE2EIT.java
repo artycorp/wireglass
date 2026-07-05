@@ -64,13 +64,16 @@ class LocalOnlyDashboardConfigE2EIT {
 
     @AfterAll
     void tearDown() {
-        if (browser != null) {
-            browser.close();
+        try {
+            if (browser != null) {
+                browser.close();
+            }
+            if (playwright != null) {
+                playwright.close();
+            }
+        } finally {
+            System.setProperty("user.home", originalUserHome);
         }
-        if (playwright != null) {
-            playwright.close();
-        }
-        System.setProperty("user.home", originalUserHome);
     }
 
     @Test
