@@ -32,7 +32,13 @@ public class RemoteConfigService {
 
     private static final Logger LOG = LoggerFactory.getLogger(RemoteConfigService.class);
     private static final RemoteConfig EMPTY = new RemoteConfig(1, List.of(), List.of());
-    private static final String LOCAL_TEMPLATE = "{\"version\":1,\"schemas\":[],\"dashboards\":[]}";
+    private static final String LOCAL_TEMPLATE = """
+            {
+              "version": 1,
+              "schemas": [],
+              "dashboards": []
+            }
+            """;
 
     private final ListViewProperties properties;
     private final ObjectMapper objectMapper;

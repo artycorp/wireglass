@@ -46,7 +46,7 @@ class RemoteConfigServiceTest {
         assertThat(config.dashboards()).isEmpty();
         Path created = home.resolve(".wireglass").resolve("dashboards.json");
         assertThat(created).exists();
-        assertThat(Files.readString(created)).contains("\"version\":1");
+        assertThat(Files.readString(created)).contains("\"version\": 1");
     }
 
     @Test
@@ -141,6 +141,28 @@ class RemoteConfigServiceTest {
                 }
                 """);
         RemoteConfigService service = serviceWithRemoteUrl("http://127.0.0.1:1/does-not-exist");
+
+        RemoteConfig config = service.load();
+
+        assertThat(config.schemas()).hasSize(1);
+        assertThat(config.schemas().get(0).origin()).isEqualTo("local");
+    }
+
+    @Test
+    void badVersionRemoteDoesNotBlockLocalSource(@TempDir Path home) throws IOException {
+        System.setProperty("user.home", home.toString());
+        Files.createDirectories(home.resolve(".wireglass"));
+        Files.writeString(home.resolve(".wireglass").resolve("dashboards.json"), """
+                {
+                  "version": 1,
+                  "schemas": [
+                    {"id":"s1","name":"Local schema","pattern":"/","target":"response","schema":{"type":"object"}}
+                  ],
+                  "dashboards": []
+                }
+                """);
+        RemoteConfigService service =
+                serviceWithRemoteUrl("classpath:/remote-config/bad-version-remote.json");
 
         RemoteConfig config = service.load();
 
