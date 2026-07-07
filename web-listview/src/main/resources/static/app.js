@@ -25,6 +25,8 @@ const state = {
     urlSchemaSources: [],   // [{url, fetchedAt, rules:[...]}] loaded ad hoc from a URL repository
     schemaOverrides: {},    // id -> {name,pattern,target,schema} local edit of a server/url-sourced rule
     schemaRules: [],        // effective (enabled, override-applied) list used by the validator
+    schemaRulesVersion: 0,  // bumped whenever schemaRules is recomputed; invalidates validation cache
+    packetCache: new Map(), // packet.id -> { rulesVersion, validation, lang } memoized per-packet work
     serverDashboardLinks: [],
     localDashboardLinks: [],
     dashboardLinks: [],
@@ -216,6 +218,7 @@ function computeEffectiveSchemaRules() {
         .filter(r => !isServerItemDisabled('schema', r.id))
         .map(effectiveSchemaRule)
         .concat(state.localSchemaRules);
+    state.schemaRulesVersion++;
 }
 
 function computeEffectiveDashboardLinks() {
@@ -1506,7 +1509,26 @@ function bodyValidationState(validation, target) {
     return matched.some(r => r.errors.length) ? 'invalid' : 'valid';
 }
 
+function getPacketCacheEntry(packetId) {
+    let entry = state.packetCache.get(packetId);
+    if (!entry) {
+        entry = { rulesVersion: -1, validation: null, lang: {} };
+        state.packetCache.set(packetId, entry);
+    }
+    return entry;
+}
+
 function validatePacket(packet) {
+    const entry = getPacketCacheEntry(packet.id);
+    if (entry.validation && entry.rulesVersion === state.schemaRulesVersion) {
+        return entry.validation;
+    }
+    entry.validation = computeValidation(packet);
+    entry.rulesVersion = state.schemaRulesVersion;
+    return entry.validation;
+}
+
+function computeValidation(packet) {
     loadSchemaRules(false);
     const results = [];
     const paths = { request: [], response: [] };
