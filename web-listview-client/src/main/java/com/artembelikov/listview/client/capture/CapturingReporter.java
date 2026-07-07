@@ -93,12 +93,13 @@ public class CapturingReporter extends AbstractTestElement
         if (result == null) {
             return;
         }
-        capture(result);
         SampleResult[] subResults = result.getSubResults();
-        if (subResults != null) {
+        if (subResults != null && subResults.length > 0) {
             for (SampleResult sub : subResults) {
                 process(sub);
             }
+        } else {
+            capture(result);
         }
     }
 
