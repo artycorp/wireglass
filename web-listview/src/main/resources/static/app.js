@@ -497,7 +497,9 @@ function appendRow(packet) {
         shield.title = invalid ? 'Schema: invalid' : 'Schema: valid';
         row.querySelector('.c-valid').appendChild(shield);
     }
-    row.querySelector('.c-time').textContent = formatTime(packet.timestamp);
+    const timeCell = row.querySelector('.c-time');
+    timeCell.textContent = formatTime(packet.timestamp);
+    timeCell.title = packet.timestamp || '';
     const typeCell = row.querySelector('.c-type');
     typeCell.innerHTML = '<span class="type-pill">' + esc(packet.type) + '</span>';
     typeCell.classList.add(typeClass(packet.type));
@@ -505,7 +507,9 @@ function appendRow(packet) {
     methodCell.innerHTML = '<span class="method-pill">' + esc(packet.method) + '</span>';
     const methodCls = methodClass(packet.method);
     if (methodCls) methodCell.classList.add(methodCls);
-    row.querySelector('.c-url').textContent = packet.url || packet.label;
+    const urlCell = row.querySelector('.c-url');
+    urlCell.textContent = packet.url || packet.label;
+    urlCell.title = packet.url || packet.label || '';
     const statusCell = row.querySelector('.c-status');
     statusCell.innerHTML = '<span class="status-pill">' + esc(packet.status || (packet.success ? 'OK' : 'ERR')) + '</span>';
     const cls = statusClass(packet.status);

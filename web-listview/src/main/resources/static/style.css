@@ -640,7 +640,17 @@ th.sortable[aria-sort="ascending"],
 th.sortable[aria-sort="descending"] { color: var(--accent); }
 th.sortable[aria-sort="ascending"]::after { content: " \25B2"; color: var(--accent); opacity: 1; }
 th.sortable[aria-sort="descending"]::after { content: " \25BC"; color: var(--accent); opacity: 1; }
-td.c-url { max-width: 100%; }
+td.c-url {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+td.c-time {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 tr.pkt { cursor: pointer; }
 tr.pkt:hover { background: rgba(76, 154, 255, .055); }
 tr.pkt.selected {
