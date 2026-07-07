@@ -27,8 +27,9 @@ public abstract class AbstractPacketExtractor implements PacketExtractor {
 
         boolean bodyTruncated = responseBytes.length > maxBodyBytes;
         String contentType = result.getContentType();
+        boolean flaggedBinary = "bin".equalsIgnoreCase(result.getDataType());
         boolean isText = PacketPayload.isTextContentType(contentType)
-                && !"bin".equalsIgnoreCase(result.getDataType());
+                && (!flaggedBinary || PacketPayload.looksLikeText(responseBytes));
         String responseBody;
         boolean bodyBinary;
         if (isText) {

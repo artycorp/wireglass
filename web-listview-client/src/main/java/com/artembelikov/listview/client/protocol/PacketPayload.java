@@ -1,6 +1,10 @@
 package com.artembelikov.listview.client.protocol;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -77,5 +81,31 @@ public final class PacketPayload {
     public static String decodeText(byte[] bytes, Charset charset, int limit) {
         int len = Math.min(bytes.length, limit);
         return new String(bytes, 0, len, charset);
+    }
+
+    public static boolean looksLikeText(byte[] bytes) {
+        if (bytes.length == 0) {
+            return true;
+        }
+        int sampleLen = Math.min(bytes.length, 8192);
+        CharBuffer decoded;
+        try {
+            decoded = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes, 0, sampleLen));
+        } catch (CharacterCodingException e) {
+            return false;
+        }
+        for (int i = 0; i < decoded.length(); i++) {
+            char c = decoded.charAt(i);
+            if (c == '\t' || c == '\n' || c == '\r') {
+                continue;
+            }
+            if (Character.isISOControl(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 }
