@@ -1529,7 +1529,6 @@ function validatePacket(packet) {
 }
 
 function computeValidation(packet) {
-    loadSchemaRules(false);
     const results = [];
     const paths = { request: [], response: [] };
     for (const rule of state.schemaRules) {
@@ -1689,6 +1688,7 @@ el.clear.addEventListener('click', async () => {
     state.selectedRunId = null;
     state.activeRunId = null;
     state.maxElapsed = 1;
+    state.packetCache.clear();
     el.tbody.innerHTML = '';
     el.count.textContent = '0 packets';
     renderRunList();
