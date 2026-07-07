@@ -410,6 +410,7 @@ async function loadRecent() {
         if (!r.ok) return;
         state.packets = [];
         state.seen = new Set();
+        state.packetCache.clear();
         const recent = await r.json();
         for (const p of recent) {
             addPacket(p);
@@ -819,7 +820,10 @@ function prettyXml(str) {
     return out.join('\n');
 }
 
-const DETECT_LANG_MAX_BYTES = 200 * 1024;
+// Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
+// as-is; anything else returns null so the caller falls back to a plain <pre>. Bodies over
+// DETECT_LANG_MAX_CHARS skip reformatting entirely and fall back to raw display.
+const DETECT_LANG_MAX_CHARS = 200 * 1024;
 
 function detectLangCached(packetId, target, body) {
     const entry = getPacketCacheEntry(packetId);
@@ -832,7 +836,7 @@ function detectLangCached(packetId, target, body) {
 }
 
 function detectLang(body) {
-    if (body.length > DETECT_LANG_MAX_BYTES) return null;
+    if (body.length > DETECT_LANG_MAX_CHARS) return null;
     const t = body.trimStart();
     if (t.startsWith('{') || t.startsWith('[')) {
         try { return { code: JSON.stringify(JSON.parse(body), null, 2), mode: 'application/json' }; }
