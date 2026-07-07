@@ -3,6 +3,7 @@ package com.artembelikov.listview.web;
 import com.artembelikov.listview.capture.PacketBus;
 import com.artembelikov.listview.client.dto.CapturedPacket;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,11 @@ public class TrafficStreamController {
     public SseEmitter stream() {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
         AtomicReference<PacketBus.Subscription> subRef = new AtomicReference<>();
+        AtomicBoolean closed = new AtomicBoolean(false);
         PacketBus.Subscription subscription = bus.subscribe(packet -> {
+            if (closed.get()) {
+                return;
+            }
             try {
                 emitter.send(SseEmitter.event()
                         .name("packet")
@@ -41,28 +46,31 @@ public class TrafficStreamController {
                 // and finish quietly. NOTE: completeWithError() would trigger an error dispatch on
                 // the already-broken connection and make Tomcat log a noisy "Cannot start async:
                 // [ERROR]" stack trace, so we unsubscribe and complete() normally instead.
-                PacketBus.Subscription s = subRef.get();
-                if (s != null) {
-                    s.close();
-                }
                 LOG.debug("SSE client disconnected, closing stream: {}", e.toString());
-                try {
-                    emitter.complete();
-                } catch (RuntimeException ignored) {
-                    // already torn down
-                }
+                closeGracefully(subRef.get(), emitter, closed);
             }
         });
         subRef.set(subscription);
-        emitter.onCompletion(subscription::close);
-        emitter.onTimeout(() -> {
-            subscription.close();
-            emitter.complete();
-        });
+        emitter.onCompletion(() -> closeGracefully(subscription, emitter, closed));
+        emitter.onTimeout(() -> closeGracefully(subscription, emitter, closed));
         emitter.onError(t -> {
             LOG.debug("SSE stream error: {}", t.toString());
-            subscription.close();
+            closeGracefully(subscription, emitter, closed);
         });
         return emitter;
+    }
+
+    void closeGracefully(PacketBus.Subscription subscription, SseEmitter emitter, AtomicBoolean closed) {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        if (subscription != null) {
+            subscription.close();
+        }
+        try {
+            emitter.complete();
+        } catch (RuntimeException ignored) {
+            // already torn down by the container
+        }
     }
 }
