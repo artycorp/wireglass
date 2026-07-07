@@ -1015,9 +1015,11 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     vertical-align: top;
 }
 .detail table.kv td.k {
-    width: min(38%, 180px);
-    color: var(--accent);
-    overflow-wrap: anywhere;
+    max-width: 12rem;
+    width: 1%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .detail table.kv td.v {
     min-width: 0;
