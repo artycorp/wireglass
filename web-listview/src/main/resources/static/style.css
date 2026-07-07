@@ -1020,6 +1020,7 @@ td.c-latency { font-variant-numeric: tabular-nums; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--accent);
 }
 .detail table.kv td.v {
     min-width: 0;
