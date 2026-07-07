@@ -258,6 +258,9 @@ button:disabled { opacity: .45; cursor: default; }
     background: rgba(248,81,73,.08);
     border-color: rgba(248,81,73,.26);
 }
+.topbar .toolbar-clear {
+    margin-left: auto;
+}
 /* active-filters summary row */
 .active-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .active-filters .af-label { color: var(--muted); font-size: 11px; text-transform: uppercase; }
