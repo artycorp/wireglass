@@ -584,6 +584,15 @@ button:disabled { opacity: .45; cursor: default; }
 tr.empty-row td { text-align: center; color: var(--muted); padding: 28px 8px; white-space: normal; }
 tr.empty-row a { color: var(--accent); cursor: pointer; }
 
+.trace-link,
+.trace-link:visited {
+    color: var(--accent);
+    text-decoration: underline;
+}
+.trace-link:hover {
+    color: var(--text);
+}
+
 .table-wrap {
     overflow: auto;
     flex: 1;
