@@ -656,8 +656,8 @@ function renderDetail(packet) {
         + dashboardSectionPlaceholder()
         + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
         + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
-        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
-        + bodyBlock(respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
+        + '<section class="detail-section" id="detail-bodies">' + bodyBlock(packet.id, reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
+        + bodyBlock(packet.id, respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
         + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
@@ -758,14 +758,14 @@ let detailBodies = [];  // {title, body, code, mode, size, raw} per rendered bod
 let detailSpy = null;   // IntersectionObserver that syncs nav tabs to scroll position
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
-function bodyBlock(title, body, binary, truncated, target, validationErrors, validationState) {
+function bodyBlock(packetId, title, body, binary, truncated, target, validationErrors, validationState) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? ' (truncated)' : '');
     let code = body;
     let mode = null;
     if (!binary) {
-        const lang = detectLang(body);
+        const lang = detectLangCached(packetId, target, body);
         if (lang) { code = lang.code; mode = lang.mode; }
     } else {
         note += ' (binary — hex preview)';
@@ -815,9 +815,20 @@ function prettyXml(str) {
     return out.join('\n');
 }
 
-// Pick a CodeMirror mode from the body content: JSON gets pretty-printed; HTML/XML is highlighted
-// as-is; anything else returns null so the caller falls back to a plain <pre>.
+const DETECT_LANG_MAX_BYTES = 200 * 1024;
+
+function detectLangCached(packetId, target, body) {
+    const entry = getPacketCacheEntry(packetId);
+    if (Object.prototype.hasOwnProperty.call(entry.lang, target)) {
+        return entry.lang[target];
+    }
+    const lang = detectLang(body);
+    entry.lang[target] = lang;
+    return lang;
+}
+
 function detectLang(body) {
+    if (body.length > DETECT_LANG_MAX_BYTES) return null;
     const t = body.trimStart();
     if (t.startsWith('{') || t.startsWith('[')) {
         try { return { code: JSON.stringify(JSON.parse(body), null, 2), mode: 'application/json' }; }
