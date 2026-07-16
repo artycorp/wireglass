@@ -13,7 +13,24 @@
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jackson.version>2.17.2</jackson.version>
   </properties>
+
+  <!-- Pin Jackson uniformly, or the shaded jar mixes jackson-databind 2.17 (from
+       web-listview-client) with an older jackson-core (from jmeter-dsl's transitive tree) and blows
+       up at runtime with NoSuchMethodError BufferRecycler.releaseToPool(). dependencyManagement is
+       not inherited transitively, so the client module's bom import does not cover this module. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <!-- Shared capture pipeline (extractors, CapturedPacket, Json, WsSink, SampleCapture).

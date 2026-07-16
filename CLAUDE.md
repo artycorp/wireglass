@@ -105,8 +105,11 @@ in the web app that calls `packetBus.publish(packet)`. `CapturedPacket` is seria
 - Java 17 records for DTOs/data; constructor injection only; `java.time.OffsetDateTime` for time.
 - Logging is log4j2 (NOT logback) because JMeter requires it — never reintroduce
   `spring-boot-starter-logging`. Config: `web-listview/src/main/resources/log4j2.xml`.
-- The client module pins Jackson via `jackson-bom`. Without Spring Boot's BOM, standalone usage
-  otherwise hits `NoSuchMethodError: BufferRecycler.releaseToPool()` (jackson-core/databind mismatch).
+- The client AND `web-listview-jmeter` modules each pin Jackson via `jackson-bom`. Without Spring
+  Boot's BOM, standalone usage otherwise hits `NoSuchMethodError: BufferRecycler.releaseToPool()`
+  (jackson-core/databind mismatch). `dependencyManagement` is NOT inherited transitively, so every
+  module that (re)bundles Jackson — e.g. the shaded plugin jar — must import the bom itself, not rely
+  on the client's.
 - No code comments unless explicitly requested.
 
 ## Frontend gotchas
