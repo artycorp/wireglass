@@ -51,11 +51,11 @@ jmeter-web-listview/
 Two options:
 
 ```bash
-# option 1 (recommended for development)
-mvn -pl web-listview -am spring-boot:run
-
-# option 2 — flat classpath via the helper script
+# option 1 (recommended) — flat classpath via the helper script
 ./web-listview/run.sh
+
+# option 2 — Maven, from the repo root
+mvn -pl web-listview -am org.springframework.boot:spring-boot-maven-plugin:run
 ```
 
 Then open <http://localhost:8080>.
@@ -65,6 +65,11 @@ Then open <http://localhost:8080>.
 `-am` matters here: `web-listview` depends on `web-listview-client`, and running only the app module can
 pick up a stale client jar from your local Maven repository. That manifests as packets not appearing in
 the UI or `NoSuchMethodError` at runtime.
+
+> Use the **fully-qualified** goal (`org.springframework.boot:spring-boot-maven-plugin:run`), not the
+> `spring-boot:run` prefix, when launching from the repo root: the short prefix is resolved against the
+> aggregator POM, which doesn't declare the plugin, so it fails with `No plugin found for prefix
+> 'spring-boot'`. (`spring-boot:run` works only from inside `web-listview/`.)
 
 ## HTTP API
 

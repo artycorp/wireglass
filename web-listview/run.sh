@@ -7,7 +7,9 @@
 # nested-jar URIs ("URI is not hierarchical"). A flat classpath keeps every
 # dependency as a real file and avoids this entirely.
 #
-# You can also run via:  mvn -pl web-listview -am spring-boot:run
+# You can also run from the repo root via:
+#   mvn -pl web-listview -am org.springframework.boot:spring-boot-maven-plugin:run
+# (the short `spring-boot:run` prefix only resolves from inside web-listview/)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

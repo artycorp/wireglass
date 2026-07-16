@@ -15,12 +15,17 @@ jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-m
 
 ## Build / run / test  (IMPORTANT — non-obvious)
 - Build everything (from repo root): `mvn verify` — the reactor builds the client before the web app.
-- Run the app: `mvn -pl web-listview -am spring-boot:run` (or `./web-listview/run.sh`).
+- Run the app: `./web-listview/run.sh`, or from the repo root
+  `mvn -pl web-listview -am org.springframework.boot:spring-boot-maven-plugin:run`. Do NOT use the
+  short `spring-boot:run` prefix from the root — it resolves against the aggregator POM (no plugin
+  there) and fails with `No plugin found for prefix 'spring-boot'`; the prefix works only from inside
+  `web-listview/`.
 - YOU MUST NOT use `java -jar target/*.jar`: the Spring Boot fat jar fails with
   `URI is not hierarchical`. JMeter's embedded engine resolves each test-element class' jar via
   `new File(codeSource.toURI())`, which breaks on nested `BOOT-INF/lib` URIs. Use an exploded
-  classpath (`spring-boot:run` / `run.sh`) — that's also why the e2e tests use `@SpringBootTest`.
-- The `-am` on `spring-boot:run` is required after shared-client changes: otherwise Maven can run the
+  classpath (`spring-boot-maven-plugin:run` / `run.sh`) — that's also why the e2e tests use
+  `@SpringBootTest`.
+- The `-am` on the run goal is required after shared-client changes: otherwise Maven can run the
   app with a stale `web-listview-client` from `~/.m2`, leading to runtime `NoSuchMethodError` and
   "run started but no packets appeared" behavior.
 - E2E tests (Playwright/Java, `*IT.java`, run by Failsafe — `TrafficInspectorE2EIT`,
