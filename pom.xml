@@ -12,6 +12,7 @@
 
   <modules>
     <module>web-listview-client</module>
+    <module>web-listview-jmeter</module>
     <module>web-listview</module>
   </modules>
 </project>

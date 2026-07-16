@@ -28,8 +28,7 @@ public class CapturingReporter extends AbstractTestElement
     private static final long serialVersionUID = 1L;
 
     private transient PacketSink sink;
-    private transient List<PacketExtractor> extractors;
-    private transient int maxBodyBytes;
+    private transient SampleCapture capture;
 
     public CapturingReporter() {
         super();
@@ -37,8 +36,7 @@ public class CapturingReporter extends AbstractTestElement
 
     public CapturingReporter(PacketSink sink, List<PacketExtractor> extractors, int maxBodyBytes) {
         this.sink = sink;
-        this.extractors = extractors;
-        this.maxBodyBytes = maxBodyBytes;
+        this.capture = new SampleCapture(extractors, maxBodyBytes);
     }
 
     @Override
@@ -83,39 +81,10 @@ public class CapturingReporter extends AbstractTestElement
 
     @Override
     public void sampleOccurred(SampleEvent event) {
-        if (sink == null || extractors == null) {
+        if (sink == null || capture == null) {
             return;
         }
-        process(event.getResult());
-    }
-
-    private void process(SampleResult result) {
-        if (result == null) {
-            return;
-        }
-        SampleResult[] subResults = result.getSubResults();
-        if (subResults != null && subResults.length > 0) {
-            for (SampleResult sub : subResults) {
-                process(sub);
-            }
-        } else {
-            capture(result);
-        }
-    }
-
-    private void capture(SampleResult result) {
-        for (PacketExtractor extractor : extractors) {
-            try {
-                if (extractor.supports(result)) {
-                    CapturedPacket packet = extractor.extract(result, maxBodyBytes);
-                    sink.publish(packet);
-                    return;
-                }
-            } catch (RuntimeException e) {
-                LOG.warn("Failed to capture sample {}: {}", result.getSampleLabel(), e.toString());
-                return;
-            }
-        }
+        capture.capture(event.getResult(), sink);
     }
 
     @Override

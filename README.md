@@ -124,9 +124,25 @@ Run it, and the requests/responses appear in the browser list view in real time.
 before the page is opened are backfilled automatically when the page loads. HTTPS bodies are captured
 decrypted (JMeter terminates TLS as the client).
 
-> Regular JMeter (GUI / non-GUI, `.jmx`) is **not** supported yet: that requires a dedicated JMeter
-> plugin (a `BackendListenerClient` jar). The WebSocket ingestion endpoint (`/api/ingest`) and the
-> shared extractors are already in place as the foundation for it.
+## Use with stock JMeter (`.jmx`, GUI / non-GUI)
+
+Stock JMeter is supported too, via a `BackendListenerClient` plugin in the `web-listview-jmeter`
+module. It reuses the same shared extractors and `/api/ingest` WebSocket transport, so a `.jmx` run
+shows up in the browser exactly like a jmeter-dsl or form-launched run.
+
+```bash
+# 1. build the self-contained plugin jar
+mvn -pl web-listview-jmeter -am package
+# 2. drop it into your JMeter install
+cp web-listview-jmeter/target/web-listview-jmeter-*-jmeter.jar "$JMETER_HOME/lib/ext/"
+# 3. with Wireglass running, drive any plan that has the Backend Listener wired up
+"$JMETER_HOME/bin/jmeter" -n -t web-listview-jmeter/examples/wireglass-example.jmx
+```
+
+Add a **Backend Listener** to the plan with implementation class
+`com.artembelikov.listview.jmeter.WireglassBackendListener` and a `serverUrl` argument pointing at the
+app (default `http://localhost:8080`). See [`web-listview-jmeter/README.md`](web-listview-jmeter/README.md)
+for all parameters and a ready-to-run example plan.
 
 ## Testing (end-to-end with Playwright)
 
