@@ -2,7 +2,8 @@
 
 Guidance for Claude Code working in this repo. Keep it authoritative where the code can't speak for
 itself: non-obvious commands, project-specific architecture, and the gotchas that already bit us.
-See @README.md for the overview/API and @docs/PLAN.md for the design.
+See @README.md for the overview/API. `docs/PLAN.md` records the original design and phase history
+(all phases complete) — read it on demand for rationale, not as live guidance.
 
 ## Project
 Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Maven (Java 17):
@@ -29,9 +30,10 @@ Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Mave
   app with a stale `wireglass-client` from `~/.m2`, leading to runtime `NoSuchMethodError` and
   "run started but no packets appeared" behavior.
 - E2E tests (Playwright/Java, `*IT.java`, run by Failsafe — `TrafficInspectorE2EIT`,
-  `ServerConfigRulesE2EIT`, `MergedDashboardConfigE2EIT`, `LocalOnlyDashboardConfigE2EIT`):
-  `mvn verify` auto-installs chromium at `pre-integration-test`. Skip tests: `-DskipITs=true`; skip
-  the browser download: `-DskipPlaywrightInstall=true`.
+  `ServerConfigRulesE2EIT`, `MergedDashboardConfigE2EIT`, `LocalOnlyDashboardConfigE2EIT`, plus
+  `JmeterBackendListenerIT`, which drives a real stock-JMeter run through the shaded plugin and is
+  browser-less): `mvn verify` auto-installs chromium at `pre-integration-test`. Skip tests:
+  `-DskipITs=true`; skip the browser download: `-DskipPlaywrightInstall=true`.
 - Any test that boots the app (unit or `*IT.java`) MUST override `user.home` to a temp dir in
   `@BeforeEach`/`@AfterEach` (see `RemoteConfigServiceTest`, `TrafficInspectorE2EIT`) — the app reads
   `~/.wireglass/dashboards.json` on every load, so an un-isolated test touches (and can pollute) the
@@ -39,6 +41,9 @@ Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Mave
 - Single test class: `mvn -pl wireglass-app -am test -Dtest=RemoteConfigServiceTest`; single IT:
   `mvn -pl wireglass-app -am verify -Dit.test=ServerConfigRulesE2EIT`.
 - Compile only (fast loop): `mvn -q -DskipTests compile`.
+- CI (`.github/workflows/ci.yml`) caches Chromium under a key pinned to `playwright-<os>-chromium-1.48.0`.
+  Bump that key in lockstep with `playwright.version` in `wireglass-app/pom.xml` — nothing enforces the
+  match, and a stale cache restores the wrong browser silently.
 
 ## Architecture (specific to this project)
 - All captured traffic flows through one `PacketBus` → bounded `PacketRepository` (ring buffer) and
@@ -61,6 +66,12 @@ Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Mave
   clash with JMeter's own lib Jackson) and treats the whole JMeter tree as provided. The thin main
   jar is what `wireglass-app` depends on in TEST scope (`JmeterBackendListenerIT`), keeping relocated
   Jackson off the app classpath.
+- Run tracking: `TestRunService` stamps every packet with a `runId` and subscribes to the bus filtered
+  by it; `store/RunRepository` holds a `RunSummary` per run and `GET /api/runs` lists them, so the UI
+  can scope the table to one run. `capture/ClientRuntimeVerifier` reflectively asserts
+  `CapturedPacket.withRunId(UUID)` exists at startup — that's what turns a stale `~/.m2` client (see
+  the `-am` note above) into a clear boot failure instead of a runtime `NoSuchMethodError`. If you add
+  a `CapturedPacket` method the app depends on, consider pinning it there too.
 - Extractor ORDER MATTERS: HTTP → WebSocket → TCP. `TcpPacketExtractor.supports()` always returns
   true (catch-all), so it must stay last; see `TrafficCaptureListenerFactory.orderedExtractors()`.
 - Server-provided rules/dashboards (`capture/RemoteConfigService`, `web/RemoteConfigController`):
@@ -121,6 +132,9 @@ in the web app that calls `packetBus.publish(packet)`. `CapturedPacket` is seria
 - Packets reach the UI two ways and are deduped by id in `state.seen`: live via SSE, and backfilled
   on page load via `GET /api/packets` (so a test that ran before the page was opened still shows up).
 - h3 section titles are uppercased by CSS — assert case-insensitively in tests.
+- Third-party frontend assets are VENDORED under `static/vendor/` (CodeMirror 5, Plex fonts). No build
+  step and no CDN — a strict-CSP-friendly setup. Add a library by vendoring it, not by adding a
+  `<script src="https://...">`.
 
 ## Repo etiquette
 - Never commit `jmeter/` (apache/jmeter + jmeter-java-dsl shallow reference clones) or `target/` —
