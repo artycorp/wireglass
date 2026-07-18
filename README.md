@@ -2,7 +2,7 @@
 
 > A smoked-glass pane onto the wire — see every packet your load test sends.
 >
-> _(formerly `jmeter-web-listview`; the Maven modules and Java packages keep that name.)_
+> _(formerly `jmeter-web-listview`.)_
 
 A web application that runs load tests on top of [jmeter-java-dsl](https://github.com/abstracta/jmeter-java-dsl)
 and, in real time, shows the contents of every sent/received **HTTP/HTTPS** and **WebSocket** packet
@@ -21,21 +21,21 @@ It is a browser-based equivalent of the "Network" panel in browser devtools, pow
 ## Layout
 
 ```
-jmeter-web-listview/
+wireglass/
 ├── jmeter/                  reference clones (read-only, gitignored — for grep/inspection)
 │   ├── jmeter-core/         apache/jmeter (shallow)
 │   └── jmeter-dsl/          abstracta/jmeter-java-dsl (shallow)
-├── web-listview-client/     shared capture pipeline + jmeter-dsl listener
-│   └── src/main/java/com/artembelikov/listview/client/
+├── wireglass-client/     shared capture pipeline + jmeter-dsl listener
+│   └── src/main/java/com/wireglass/listview/client/
 │       ├── capture/         CapturingReporter, SampleCapture, WsSink, PacketSink
 │       ├── protocol/        PacketExtractor SPI + HTTP/WS/TCP extractors
 │       ├── dto/             CapturedPacket, PacketType
 │       └── json/            shared Jackson mapper
-├── web-listview-jmeter/     BackendListenerClient plugin for stock JMeter (.jmx)
-│   └── src/main/java/com/artembelikov/listview/jmeter/
+├── wireglass-jmeter/     BackendListenerClient plugin for stock JMeter (.jmx)
+│   └── src/main/java/com/wireglass/listview/jmeter/
 │       └── WireglassBackendListener.java
-├── web-listview/            the Spring Boot web app (UI + in-process runner + ingestion)
-│   └── src/main/java/com/artembelikov/listview/
+├── wireglass-app/            the Spring Boot web app (UI + in-process runner + ingestion)
+│   └── src/main/java/com/wireglass/listview/
 │       ├── capture/         PacketBus, TestRunService, InProcessSink
 │       ├── store/           PacketRepository (ring buffer), RunRepository
 │       ├── web/             REST controllers + SSE + WebSocket ingestion
@@ -59,24 +59,24 @@ Two options:
 
 ```bash
 # option 1 (recommended) — flat classpath via the helper script
-./web-listview/run.sh
+./wireglass-app/run.sh
 
 # option 2 — Maven, from the repo root
-mvn -pl web-listview -am org.springframework.boot:spring-boot-maven-plugin:run
+mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run
 ```
 
 Then open <http://localhost:8080>.
 
-`java -jar target/web-listview-*.jar` will **not** work because of the limitation above.
+`java -jar target/wireglass-app-*.jar` will **not** work because of the limitation above.
 
-`-am` matters here: `web-listview` depends on `web-listview-client`, and running only the app module can
+`-am` matters here: `wireglass-app` depends on `wireglass-client`, and running only the app module can
 pick up a stale client jar from your local Maven repository. That manifests as packets not appearing in
 the UI or `NoSuchMethodError` at runtime.
 
 > Use the **fully-qualified** goal (`org.springframework.boot:spring-boot-maven-plugin:run`), not the
 > `spring-boot:run` prefix, when launching from the repo root: the short prefix is resolved against the
 > aggregator POM, which doesn't declare the plugin, so it fails with `No plugin found for prefix
-> 'spring-boot'`. (`spring-boot:run` works only from inside `web-listview/`.)
+> 'spring-boot'`. (`spring-boot:run` works only from inside `wireglass-app/`.)
 
 ## HTTP API
 
@@ -107,14 +107,14 @@ a future full TCP analyzer (frame parsing / reassembly).
 
 ## Use with any jmeter-java-dsl test plan
 
-The web form is not limited to tests launched from its own UI. The `web-listview-client` module
+The web form is not limited to tests launched from its own UI. The `wireglass-client` module
 provides a `TrafficCaptureClient` listener that streams every captured sample to the running form
 over a WebSocket, so **any** standalone jmeter-java-dsl test plan (in its own process/JVM) shows up
 live in the browser — exactly like a form-launched run.
 
 ```bash
-cd web-listview-client && mvn install        # publish the client to your local Maven repo
-cd ../web-listview && mvn spring-boot:run     # start the form (or ./run.sh)
+cd wireglass-client && mvn install        # publish the client to your local Maven repo
+cd ../wireglass-app && mvn spring-boot:run     # start the form (or ./run.sh)
 ```
 
 Then add the listener to your test plan:
@@ -124,7 +124,7 @@ import static us.abstracta.jmeter.javadsl.JmeterDsl.testPlan;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.threadGroup;
 import static us.abstracta.jmeter.javadsl.JmeterDsl.httpSampler;
 
-import com.artembelikov.listview.client.capture.TrafficCaptureClient;
+import com.wireglass.listview.client.capture.TrafficCaptureClient;
 
 testPlan(
     threadGroup(2, 3, httpSampler("https://httpbin.org/get")),
@@ -138,22 +138,22 @@ decrypted (JMeter terminates TLS as the client).
 
 ## Use with stock JMeter (`.jmx`, GUI / non-GUI)
 
-Stock JMeter is supported too, via a `BackendListenerClient` plugin in the `web-listview-jmeter`
+Stock JMeter is supported too, via a `BackendListenerClient` plugin in the `wireglass-jmeter`
 module. It reuses the same shared extractors and `/api/ingest` WebSocket transport, so a `.jmx` run
 shows up in the browser exactly like a jmeter-dsl or form-launched run.
 
 ```bash
 # 1. build the self-contained plugin jar
-mvn -pl web-listview-jmeter -am package
+mvn -pl wireglass-jmeter -am package
 # 2. drop it into your JMeter install
-cp web-listview-jmeter/target/web-listview-jmeter-*-jmeter.jar "$JMETER_HOME/lib/ext/"
+cp wireglass-jmeter/target/wireglass-jmeter-*-jmeter.jar "$JMETER_HOME/lib/ext/"
 # 3. with Wireglass running, drive any plan that has the Backend Listener wired up
-"$JMETER_HOME/bin/jmeter" -n -t web-listview-jmeter/examples/wireglass-example.jmx
+"$JMETER_HOME/bin/jmeter" -n -t wireglass-jmeter/examples/wireglass-example.jmx
 ```
 
 Add a **Backend Listener** to the plan with implementation class
-`com.artembelikov.listview.jmeter.WireglassBackendListener` and a `serverUrl` argument pointing at the
-app (default `http://localhost:8080`). See [`web-listview-jmeter/README.md`](web-listview-jmeter/README.md)
+`com.wireglass.listview.jmeter.WireglassBackendListener` and a `serverUrl` argument pointing at the
+app (default `http://localhost:8080`). See [`wireglass-jmeter/README.md`](wireglass-jmeter/README.md)
 for all parameters and a ready-to-run example plan.
 
 ## Testing (end-to-end with Playwright)
@@ -163,7 +163,7 @@ a real-file classpath) and drive the browser UI with Playwright against a local 
 external network is needed.
 
 ```bash
-cd web-listview
+cd wireglass-app
 mvn verify                       # installs chromium once, then runs the e2e suite
 mvn verify -DskipPlaywrightInstall=true   # skip the browser install if already present
 mvn verify -DskipITs=true        # skip e2e tests entirely

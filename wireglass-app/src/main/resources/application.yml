@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: Wireglass
+  mvc:
+    async:
+      request-timeout: -1   # SSE streams should not be timed out by Spring MVC
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # Static UI assets (app.js/style.css/index.html) change during development; force the
+          # browser to revalidate every load (conditional GET -> 304 when unchanged) so it never
+          # serves a stale script. Without this the browser cached app.js and silently ran old code.
+          no-cache: true
+
+app:
+  listview:
+    # Bounded ring buffer: keep at most this many recent packets in memory (OOM protection)
+    ring-buffer-size: 5000
+    # Cap stored body bytes per packet to avoid blowing memory on huge responses
+    max-body-bytes: 262144   # 256 KiB
+    # Optional URL or classpath resource for read-only JSON Schema and dashboard definitions.
+    remote-config-url:

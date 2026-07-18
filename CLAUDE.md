@@ -5,28 +5,28 @@ itself: non-obvious commands, project-specific architecture, and the gotchas tha
 See @README.md for the overview/API and @docs/PLAN.md for the design.
 
 ## Project
-jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-module Maven (Java 17):
-- `web-listview` — Spring Boot 3.3 web app (the browser UI + in-process runner + ingestion endpoint)
-- `web-listview-client` — jmeter-dsl listener that streams captured packets from ANY standalone
+Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Maven (Java 17):
+- `wireglass-app` — Spring Boot 3.3 web app (the browser UI + in-process runner + ingestion endpoint)
+- `wireglass-client` — jmeter-dsl listener that streams captured packets from ANY standalone
   jmeter-dsl test plan to the running app over WebSocket
-- `web-listview-jmeter` — `BackendListenerClient` plugin that streams captured packets from ANY
+- `wireglass-jmeter` — `BackendListenerClient` plugin that streams captured packets from ANY
   stock JMeter (`.jmx`, GUI/non-GUI) test plan to the running app over the same WebSocket. Reactor
-  order: client → jmeter → web-listview (falls out of the dependency graph).
+  order: client → jmeter → wireglass-app (falls out of the dependency graph).
 
 ## Build / run / test  (IMPORTANT — non-obvious)
 - Build everything (from repo root): `mvn verify` — the reactor builds the client before the web app.
-- Run the app: `./web-listview/run.sh`, or from the repo root
-  `mvn -pl web-listview -am org.springframework.boot:spring-boot-maven-plugin:run`. Do NOT use the
+- Run the app: `./wireglass-app/run.sh`, or from the repo root
+  `mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run`. Do NOT use the
   short `spring-boot:run` prefix from the root — it resolves against the aggregator POM (no plugin
   there) and fails with `No plugin found for prefix 'spring-boot'`; the prefix works only from inside
-  `web-listview/`.
+  `wireglass-app/`.
 - YOU MUST NOT use `java -jar target/*.jar`: the Spring Boot fat jar fails with
   `URI is not hierarchical`. JMeter's embedded engine resolves each test-element class' jar via
   `new File(codeSource.toURI())`, which breaks on nested `BOOT-INF/lib` URIs. Use an exploded
   classpath (`spring-boot-maven-plugin:run` / `run.sh`) — that's also why the e2e tests use
   `@SpringBootTest`.
 - The `-am` on the run goal is required after shared-client changes: otherwise Maven can run the
-  app with a stale `web-listview-client` from `~/.m2`, leading to runtime `NoSuchMethodError` and
+  app with a stale `wireglass-client` from `~/.m2`, leading to runtime `NoSuchMethodError` and
   "run started but no packets appeared" behavior.
 - E2E tests (Playwright/Java, `*IT.java`, run by Failsafe — `TrafficInspectorE2EIT`,
   `ServerConfigRulesE2EIT`, `MergedDashboardConfigE2EIT`, `LocalOnlyDashboardConfigE2EIT`):
@@ -36,14 +36,14 @@ jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-m
   `@BeforeEach`/`@AfterEach` (see `RemoteConfigServiceTest`, `TrafficInspectorE2EIT`) — the app reads
   `~/.wireglass/dashboards.json` on every load, so an un-isolated test touches (and can pollute) the
   real user's home directory.
-- Single test class: `mvn -pl web-listview -am test -Dtest=RemoteConfigServiceTest`; single IT:
-  `mvn -pl web-listview -am verify -Dit.test=ServerConfigRulesE2EIT`.
+- Single test class: `mvn -pl wireglass-app -am test -Dtest=RemoteConfigServiceTest`; single IT:
+  `mvn -pl wireglass-app -am verify -Dit.test=ServerConfigRulesE2EIT`.
 - Compile only (fast loop): `mvn -q -DskipTests compile`.
 
 ## Architecture (specific to this project)
 - All captured traffic flows through one `PacketBus` → bounded `PacketRepository` (ring buffer) and
   the browser SSE stream (`GET /api/traffic/stream`).
-- Extraction is shared and lives in `web-listview-client`:
+- Extraction is shared and lives in `wireglass-client`:
   `client.protocol.*` extractors + `client.capture.CapturingReporter` (a JMeter `SampleListener`,
   `NoThreadClone`) with a pluggable `client.capture.PacketSink`.
   - `InProcessSink` (web app) → `PacketBus` directly (no serialization).
@@ -51,15 +51,15 @@ jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-m
     `POST /api/ingest` → bus.
   Form runs, external jmeter-dsl runs, and stock-JMeter `.jmx` runs all end up on the same bus, so
   the UI is identical.
-- `SampleCapture` (in `web-listview-client`) is the single source of truth for "recurse to leaf
+- `SampleCapture` (in `wireglass-client`) is the single source of truth for "recurse to leaf
   sub-results → pick extractor → publish to sink" (leaf-only: a parent transaction reports aggregated
   time/headers). Reused by BOTH the jmeter-dsl `CapturingReporter` and the stock-JMeter
   `WireglassBackendListener` — change capture semantics there, not in either front-end.
-- Stock-JMeter plugin (`web-listview-jmeter`): `WireglassBackendListener extends
+- Stock-JMeter plugin (`wireglass-jmeter`): `WireglassBackendListener extends
   AbstractBackendListenerClient`. Its `-jmeter` classifier jar (maven-shade) is the deliverable for
   `$JMETER_HOME/lib/ext`; it bundles our code + Java-WebSocket + a RELOCATED Jackson (so it can't
   clash with JMeter's own lib Jackson) and treats the whole JMeter tree as provided. The thin main
-  jar is what `web-listview` depends on in TEST scope (`JmeterBackendListenerIT`), keeping relocated
+  jar is what `wireglass-app` depends on in TEST scope (`JmeterBackendListenerIT`), keeping relocated
   Jackson off the app classpath.
 - Extractor ORDER MATTERS: HTTP → WebSocket → TCP. `TcpPacketExtractor.supports()` always returns
   true (catch-all), so it must stay last; see `TrafficCaptureListenerFactory.orderedExtractors()`.
@@ -70,12 +70,12 @@ jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-m
   changing either side of this merge.
 
 ## How-to: add support for a new protocol (e.g. gRPC)
-1. Add a `PacketType` enum value in `web-listview-client/.../client/dto/PacketType.java`.
+1. Add a `PacketType` enum value in `wireglass-client/.../client/dto/PacketType.java`.
 2. Write `XxxPacketExtractor extends AbstractPacketExtractor` (override `supportedType()`,
    `supports()`, `resolveMethod/Url/RequestBody`). Mirror `HttpPacketExtractor`.
 3. Register it in BOTH ordered lists:
-   - `web-listview-client/.../client/capture/TrafficCaptureClient.defaultExtractors()`
-   - `web-listview/.../capture/TrafficCaptureListenerFactory.orderedExtractors()`
+   - `wireglass-client/.../client/capture/TrafficCaptureClient.defaultExtractors()`
+   - `wireglass-app/.../capture/TrafficCaptureListenerFactory.orderedExtractors()`
    Place a catch-all extractor last; otherwise keep specific-before-generic.
 4. The frontend already colors by `type` lowercase class — add CSS for the new type if desired.
 
@@ -89,23 +89,23 @@ in the web app that calls `packetBus.publish(packet)`. `CapturedPacket` is seria
 2. Implement; reuse the shared extraction/sink primitives before adding parallel logic.
 3. Add/adjust an e2e assertion in `TrafficInspectorE2EIT` (the test boots the full app in-process on
    a random port and drives the real browser against a local echo server — no external network).
-4. `mvn verify -pl web-listview -am` until green; also exercise the remote path if you touched
+4. `mvn verify -pl wireglass-app -am` until green; also exercise the remote path if you touched
    capture/transport.
 
 ## Tooling (required)
 - Use `rg` (ripgrep), never plain `grep`, for all code search.
 - Use `jdtls` (Eclipse JDT Language Server) for Java code intelligence — go-to-definition,
-  find-references, symbol search — instead of text search across `web-listview`/`web-listview-client`
+  find-references, symbol search — instead of text search across `wireglass-app`/`wireglass-client`
   sources.
 - Use `vtsls` (TypeScript/JavaScript language server) for JS code intelligence in
-  `web-listview/src/main/resources/static/app.js` instead of text search.
+  `wireglass-app/src/main/resources/static/app.js` instead of text search.
 
 ## Code style (differs from defaults)
-- Package roots: `com.artembelikov.listview` (web app) and `com.artembelikov.listview.client` (client).
+- Package roots: `com.wireglass.listview` (web app) and `com.wireglass.listview.client` (client).
 - Java 17 records for DTOs/data; constructor injection only; `java.time.OffsetDateTime` for time.
 - Logging is log4j2 (NOT logback) because JMeter requires it — never reintroduce
-  `spring-boot-starter-logging`. Config: `web-listview/src/main/resources/log4j2.xml`.
-- The client AND `web-listview-jmeter` modules each pin Jackson via `jackson-bom`. Without Spring
+  `spring-boot-starter-logging`. Config: `wireglass-app/src/main/resources/log4j2.xml`.
+- The client AND `wireglass-jmeter` modules each pin Jackson via `jackson-bom`. Without Spring
   Boot's BOM, standalone usage otherwise hits `NoSuchMethodError: BufferRecycler.releaseToPool()`
   (jackson-core/databind mismatch). `dependencyManagement` is NOT inherited transitively, so every
   module that (re)bundles Jackson — e.g. the shaded plugin jar — must import the bom itself, not rely

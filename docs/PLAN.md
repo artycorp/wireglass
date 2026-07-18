@@ -1,4 +1,4 @@
-# Plan: jmeter-web-listview — Web Traffic Inspector on top of JMeter
+# Plan: Wireglass — Web Traffic Inspector on top of JMeter
 
 ## 1. Goal & Decisions
 
@@ -22,13 +22,13 @@ without forking the core.
 ## 2. Directory Layout
 
 ```
-jmeter-web-listview/                      (workspace root)
+wireglass/                      (workspace root)
 ├── jmeter/                               ← reference, read-only
 │   ├── jmeter-core/                      ← apache/jmeter (shallow clone)
 │   └── jmeter-dsl/                       ← abstracta/jmeter-java-dsl (shallow clone)
-├── web-listview/                         ← our application (all development here)
+├── wireglass-app/                         ← our application (all development here)
 │   ├── pom.xml
-│   ├── src/main/java/com/artembelikov/listview/
+│   ├── src/main/java/com/wireglass/listview/
 │   │   ├── ListViewApplication.java
 │   │   ├── config/                       (ClockConfiguration etc., per CLAUDE.md conventions)
 │   │   ├── capture/                      ← JMeter integration
@@ -121,7 +121,7 @@ record RunRequest(String url, String method, String body, String contentType,
 2. ✅ `git clone --depth 1 https://github.com/abstracta/jmeter-java-dsl jmeter/jmeter-dsl`
 
 **Phase 1 — application skeleton** ✅ DONE
-3. ✅ Create the Maven module `web-listview` (`pom.xml`: spring-boot-starter-web,
+3. ✅ Create the Maven module `wireglass-app` (`pom.xml`: spring-boot-starter-web,
    jmeter-java-dsl, jmeter-java-dsl-websocket; Java 17).
 4. ✅ `ListViewApplication.java`, `application.yml` (port, ring-buffer limits). (+ log4j2 config)
 

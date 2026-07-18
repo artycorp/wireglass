@@ -22,7 +22,7 @@ jobs:
 
       # Playwright unpacks Chromium under ~/.cache/ms-playwright; cache it so only
       # the first run (or a version bump) pays the download. Key is pinned to the
-      # playwright.version in web-listview/pom.xml.
+      # playwright.version in wireglass-app/pom.xml.
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -36,7 +36,7 @@ jobs:
       - name: Compile and install Chromium (+ OS deps)
         run: |
           mvn -B -q -DskipTests -DskipITs=true -DskipPlaywrightInstall=true install
-          mvn -B -q -pl web-listview -Dexec.classpathScope=test \
+          mvn -B -q -pl wireglass-app -Dexec.classpathScope=test \
             org.codehaus.mojo:exec-maven-plugin:3.4.1:exec \
             -Dexec.executable=java \
             -Dexec.args="-classpath %classpath com.microsoft.playwright.CLI install --with-deps chromium"

@@ -4,15 +4,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.artembelikov</groupId>
-  <artifactId>jmeter-web-listview-parent</artifactId>
+  <groupId>com.wireglass</groupId>
+  <artifactId>wireglass-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>jmeter-web-listview (aggregator)</name>
+  <name>Wireglass (aggregator)</name>
 
   <modules>
-    <module>web-listview-client</module>
-    <module>web-listview-jmeter</module>
-    <module>web-listview</module>
+    <module>wireglass-client</module>
+    <module>wireglass-jmeter</module>
+    <module>wireglass-app</module>
   </modules>
 </project>
