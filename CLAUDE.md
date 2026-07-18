@@ -2,7 +2,7 @@
 
 Guidance for Claude Code working in this repo. Keep it authoritative where the code can't speak for
 itself: non-obvious commands, project-specific architecture, and the gotchas that already bit us.
-See @README.md for the overview/API and @PLAN.md for the design.
+See @README.md for the overview/API and @docs/PLAN.md for the design.
 
 ## Project
 jmeter-web-listview — web traffic inspector on top of jmeter-java-dsl. Multi-module Maven (Java 17):

@@ -30,7 +30,7 @@ jmeter-web-listview/                      (workspace root)
 │   ├── pom.xml
 │   ├── src/main/java/com/artembelikov/listview/
 │   │   ├── ListViewApplication.java
-│   │   ├── config/                       (ClockConfiguration etc., per AGENTS.md conventions)
+│   │   ├── config/                       (ClockConfiguration etc., per CLAUDE.md conventions)
 │   │   ├── capture/                      ← JMeter integration
 │   │   │   ├── TrafficCaptureListener.java   (extends BaseListener)
 │   │   │   ├── PacketBus.java                (ring buffer + SSE subscribers)
@@ -58,9 +58,9 @@ jmeter-web-listview/                      (workspace root)
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Build | Maven | Matches AGENTS.md and jmeter-java-dsl |
+| Build | Maven | Matches CLAUDE.md and jmeter-java-dsl |
 | Engine | `us.abstracta.jmeter:jmeter-java-dsl:2.2` + `jmeter-java-dsl-websocket:2.2` | Canonical extension path |
-| Server | Spring Boot 3.3, Java 17 | Matches AGENTS.md |
+| Server | Spring Boot 3.3, Java 17 | Matches CLAUDE.md |
 | Live stream | SSE (Spring `SseEmitter`) | Simple one-way stream, native browser support via `EventSource` |
 | Frontend | Vanilla JS/HTML/CSS | No build step, minimal dependencies |
 
@@ -93,7 +93,7 @@ PacketBus  ──► ring buffer (bounded, OOM protection under high RPS)
 - **TCP**: a stub extractor reads `SampleResult.getResponseData()` and renders a hex dump;
   full analysis (frames, reassembly) is left as TODO, but the packet type and UI are in place.
 
-## 5. Data Model (DTO records, per AGENTS.md conventions)
+## 5. Data Model (DTO records, per CLAUDE.md conventions)
 
 ```java
 record CapturedPacket(

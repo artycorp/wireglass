@@ -22,18 +22,25 @@ It is a browser-based equivalent of the "Network" panel in browser devtools, pow
 
 ```
 jmeter-web-listview/
-├── jmeter/                  reference clones (read-only, for grep/inspection)
+├── jmeter/                  reference clones (read-only, gitignored — for grep/inspection)
 │   ├── jmeter-core/         apache/jmeter (shallow)
 │   └── jmeter-dsl/          abstracta/jmeter-java-dsl (shallow)
-├── web-listview/            the application
-│   ├── pom.xml
-│   └── src/main/java/com/artembelikov/listview/
-│       ├── capture/         TrafficCaptureListener, PacketBus, TestRunService
+├── web-listview-client/     shared capture pipeline + jmeter-dsl listener
+│   └── src/main/java/com/artembelikov/listview/client/
+│       ├── capture/         CapturingReporter, SampleCapture, WsSink, PacketSink
 │       ├── protocol/        PacketExtractor SPI + HTTP/WS/TCP extractors
-│       ├── store/           PacketRepository (bounded ring buffer)
-│       ├── web/             REST controllers + SSE
-│       └── ...
-├── PLAN.md
+│       ├── dto/             CapturedPacket, PacketType
+│       └── json/            shared Jackson mapper
+├── web-listview-jmeter/     BackendListenerClient plugin for stock JMeter (.jmx)
+│   └── src/main/java/com/artembelikov/listview/jmeter/
+│       └── WireglassBackendListener.java
+├── web-listview/            the Spring Boot web app (UI + in-process runner + ingestion)
+│   └── src/main/java/com/artembelikov/listview/
+│       ├── capture/         PacketBus, TestRunService, InProcessSink
+│       ├── store/           PacketRepository (ring buffer), RunRepository
+│       ├── web/             REST controllers + SSE + WebSocket ingestion
+│       └── config/          Spring configuration
+├── docs/                    server-config format, PLAN.md, design docs
 └── README.md
 ```
 
