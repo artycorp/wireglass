@@ -7,8 +7,12 @@
 # nested-jar URIs ("URI is not hierarchical"). A flat classpath keeps every
 # dependency as a real file and avoids this entirely.
 #
-# You can also run from the repo root via:
-#   mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run
+# You can also run from the repo root, in two steps:
+#   mvn -pl wireglass-app -am -DskipTests install
+#   mvn -pl wireglass-app org.springframework.boot:spring-boot-maven-plugin:run
+# Keep them separate: a fully-qualified goal runs on every module -am pulls into
+# the reactor, and wireglass-client has no main class, so combining them fails
+# with "Unable to find a suitable main class".
 # (the short `spring-boot:run` prefix only resolves from inside wireglass-app/)
 set -euo pipefail
 

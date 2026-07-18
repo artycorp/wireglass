@@ -61,17 +61,25 @@ Two options:
 # option 1 (recommended) — flat classpath via the helper script
 ./wireglass-app/run.sh
 
-# option 2 — Maven, from the repo root
-mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run
+# option 2 — Maven, from the repo root (two steps)
+mvn -pl wireglass-app -am -DskipTests install
+mvn -pl wireglass-app org.springframework.boot:spring-boot-maven-plugin:run
 ```
 
 Then open <http://localhost:8080>.
 
 `java -jar target/wireglass-app-*.jar` will **not** work because of the limitation above.
 
-`-am` matters here: `wireglass-app` depends on `wireglass-client`, and running only the app module can
-pick up a stale client jar from your local Maven repository. That manifests as packets not appearing in
-the UI or `NoSuchMethodError` at runtime.
+Why two steps? `wireglass-app` depends on `wireglass-client`, and running only the app module picks up
+whatever client jar is in your local Maven repository — a stale one manifests as packets not appearing
+in the UI or `NoSuchMethodError` at runtime. The first command rebuilds and installs the client; the
+second starts the app.
+
+> **Do not** collapse this into `mvn -pl wireglass-app -am org.springframework.boot:...:run`. A
+> fully-qualified goal invoked from the CLI runs against *every* module `-am` pulls into the reactor,
+> and `wireglass-client` is built first and has no main class, so the build dies with `Unable to find a
+> suitable main class`. It also resolves an unpinned plugin version there (the client POM has no
+> Spring Boot parent), so the failure can arrive from a much newer plugin than the app uses.
 
 > Use the **fully-qualified** goal (`org.springframework.boot:spring-boot-maven-plugin:run`), not the
 > `spring-boot:run` prefix, when launching from the repo root: the short prefix is resolved against the

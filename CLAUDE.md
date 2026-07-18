@@ -16,11 +16,18 @@ Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Mave
 
 ## Build / run / test  (IMPORTANT — non-obvious)
 - Build everything (from repo root): `mvn verify` — the reactor builds the client before the web app.
-- Run the app: `./wireglass-app/run.sh`, or from the repo root
-  `mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run`. Do NOT use the
+- Run the app: `./wireglass-app/run.sh`, or from the repo root in TWO steps —
+  `mvn -pl wireglass-app -am -DskipTests install` then
+  `mvn -pl wireglass-app org.springframework.boot:spring-boot-maven-plugin:run`. Do NOT use the
   short `spring-boot:run` prefix from the root — it resolves against the aggregator POM (no plugin
   there) and fails with `No plugin found for prefix 'spring-boot'`; the prefix works only from inside
   `wireglass-app/`.
+- YOU MUST NOT combine `-am` with the fully-qualified run goal
+  (`mvn -pl wireglass-app -am org.springframework.boot:spring-boot-maven-plugin:run`) — a CLI-invoked
+  fully-qualified goal executes on EVERY module `-am` adds to the reactor, and `wireglass-client`
+  builds first with no main class: `Unable to find a suitable main class`. The client POM has no
+  Spring Boot parent, so Maven also resolves an unpinned (much newer) plugin version there. Split it:
+  `-am install` first to refresh the client, then the run goal without `-am`.
 - YOU MUST NOT use `java -jar target/*.jar`: the Spring Boot fat jar fails with
   `URI is not hierarchical`. JMeter's embedded engine resolves each test-element class' jar via
   `new File(codeSource.toURI())`, which breaks on nested `BOOT-INF/lib` URIs. Use an exploded
