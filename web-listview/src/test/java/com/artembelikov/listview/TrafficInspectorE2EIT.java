@@ -184,12 +184,14 @@ class TrafficInspectorE2EIT {
             page.navigate(appUrl("/"));
 
             startRun(page, "GET", "", null);
-            waitForRowCount(page, 1);
+            // 1 thread x 2 iterations = 2 packets; wait for the whole run to land before
+            // snapshotting firstCount. A bare >=1 wait races the second packet, and the
+            // exact-equality filter assertion below would then never match on a slow runner.
+            int firstCount = waitForRowCount(page, 2);
             page.waitForSelector("#run-list .run-chip",
                     new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
 
             String firstRunId = page.getAttribute("#run-list .run-chip", "data-run-id");
-            int firstCount = rowCount(page);
             assertThat(firstRunId).isNotBlank();
             assertThat(firstCount).isGreaterThan(0);
 
