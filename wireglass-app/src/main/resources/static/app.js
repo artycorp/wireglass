@@ -1205,7 +1205,7 @@ function refreshDashboardViews() {
 }
 
 function dashboardBadgeLabel(link) {
-    return link.origin === 'local' ? 'local file' : 'server';
+    return link.origin === 'local' ? t('badge.localFile') : t('badge.server');
 }
 
 function renderDashboardList() {
@@ -1226,7 +1226,7 @@ function renderDashboardList() {
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(link.id) + '">'
             + dashboardSystemIconHtml(link.system)
             + '<span class="validation-target">' + esc(link.scope) + '</span>'
-            + (isServer ? '<span class="validation-target">' + dashboardBadgeLabel(link) + '</span>' : '')
+            + (isServer ? '<span class="validation-target">' + esc(dashboardBadgeLabel(link)) + '</span>' : '')
             + '<strong>' + esc(link.name) + '</strong>'
             + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
             + (isServer
@@ -1437,7 +1437,6 @@ function retranslateRenderedContent() {
     renderDashboardList();
     renderTraceLinks();
     renderGlobalLinks();
-    renderUrlSchemaSources();
     renderActiveFilters();
     updateSortIndicators();
     rebuildList();
@@ -1477,8 +1476,8 @@ function saveSchemaRules() {
 }
 
 function schemaBadgeLabel(rule) {
-    if (rule.origin === 'local') return 'local file';
-    return rule.source === 'url' ? 'url' : 'server';
+    if (rule.origin === 'local') return t('badge.localFile');
+    return rule.source === 'url' ? t('badge.url') : t('badge.server');
 }
 
 function renderSchemaRules() {
@@ -1500,8 +1499,8 @@ function renderSchemaRules() {
         if (rule.id === state.editingSchemaRuleId) classes.push('editing');
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(rule.id) + '">'
             + '<span class="validation-target">' + esc(rule.target) + '</span>'
-            + (isRemote ? '<span class="validation-target">' + schemaBadgeLabel(rule) + '</span>' : '')
-            + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
+            + (isRemote ? '<span class="validation-target">' + esc(schemaBadgeLabel(rule)) + '</span>' : '')
+            + (rule.overridden ? '<span class="validation-target">' + esc(t('badge.edited')) + '</span>' : '')
             + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
             + '<code>' + esc(rule.pattern) + '</code>'
             + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">' + esc(t('list.edit')) + '</button>'

@@ -240,6 +240,36 @@ class I18nE2EIT {
     }
 
     @Test
+    void savedItemBadgesFollowTheLanguageButKeepTheirEnglishWording() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.evaluate("() => setActiveLanguage('ru')");
+            assertThat(page.evaluate("() => schemaBadgeLabel({origin:'remote', source:'server'})"))
+                    .isEqualTo("сервер");
+            assertThat(page.evaluate("() => schemaBadgeLabel({origin:'local'})"))
+                    .isEqualTo("локальный файл");
+            assertThat(page.evaluate("() => dashboardBadgeLabel({origin:'local'})"))
+                    .isEqualTo("локальный файл");
+            assertThat(page.evaluate("() => t('badge.edited')")).isEqualTo("изменено");
+
+            // ServerConfigRulesE2EIT asserts on these exact English words in #schema-list and
+            // #dash-list; English stays the default, so translating the badges must not move them.
+            page.evaluate("() => setActiveLanguage('en')");
+            assertThat(page.evaluate("() => schemaBadgeLabel({origin:'remote', source:'server'})"))
+                    .isEqualTo("server");
+            assertThat(page.evaluate("() => schemaBadgeLabel({origin:'remote', source:'url'})"))
+                    .isEqualTo("url");
+            assertThat(page.evaluate("() => t('badge.edited')")).isEqualTo("edited");
+
+            browser.close();
+        }
+    }
+
+    @Test
     void switchingLanguageKeepsPacketsAndSelection() {
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium()

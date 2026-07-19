@@ -145,7 +145,13 @@ in the web app that calls `packetBus.publish(packet)`. `CapturedPacket` is seria
   and `textContent` would delete the nested control. Whitespace-only nodes are skipped so indented
   markup works, and the node's surrounding spaces are preserved so inline labels keep their gap
   from the control. A label whose text sits after its children (the `bodies` checkbox) or between
-  them (the `New run` button) needs no wrapper.
+  them (the `New run` button) needs no wrapper. If the element has no non-whitespace text node at
+  all, one is INSERTED as its first child — so tagging an empty element with `data-i18n` silently
+  gives it text rather than failing; that branch is deliberate but untested.
+  Text rendered by JS into `innerHTML` must be `esc()`d even when it comes from the dictionary
+  (`schemaBadgeLabel`, `dashboardBadgeLabel`, `sectionHeaders`) — the translated string is still
+  interpolated markup. `bodyBlock` is the exception: its title arrives as HTML from
+  `reqTitle`/`respTitle`.
   Text that is a DATA VALUE carries no `data-i18n`: `HTTP`/`WS`/`TCP` (bound to `data-type`), HTTP
   methods, `2xx`–`5xx`, and the `response`/`request` options in the schema pane — that last one is
   persisted into saved rules and asserted by the e2e suite.
