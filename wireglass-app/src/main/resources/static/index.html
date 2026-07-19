@@ -184,101 +184,113 @@
                         data-settings-tab="language">Language</button>
             </div>
             <div class="schema-panel settings-pane" id="schema-panel" role="tabpanel" aria-labelledby="settings-tab-schema">
-                <label class="schema-field">Name (optional)
-                    <input id="schema-name" type="text" placeholder="User response shape"/>
-                </label>
-                <label class="schema-field pattern">URL pattern
-                    <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
-                </label>
-                <label class="schema-field target">target
-                    <select id="schema-target">
-                        <option value="response">response</option>
-                        <option value="request">request</option>
-                    </select>
-                </label>
-                <label class="schema-field schema">JSON Schema
-                    <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
-                </label>
-                <div class="schema-actions">
-                    <button type="button" id="schema-save" class="primary">Save</button>
-                    <button type="button" id="schema-cancel-edit" class="mini" hidden>Cancel</button>
-                    <span id="schema-message" class="schema-message" role="status"></span>
-                </div>
-                <div id="schema-list" class="schema-list"></div>
-                <div class="schema-remote">
-                    <label class="schema-field pattern">Load rules from URL
-                        <input id="schema-remote-url" type="text" placeholder="https://example.com/wireglass-rules.json"/>
+                <div class="settings-form">
+                    <label class="schema-field col-4">Name (optional)
+                        <input id="schema-name" type="text" placeholder="User response shape"/>
+                    </label>
+                    <label class="schema-field pattern col-4">URL pattern
+                        <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
+                    </label>
+                    <label class="schema-field target col-4">Target
+                        <select id="schema-target">
+                            <option value="response">response</option>
+                            <option value="request">request</option>
+                        </select>
+                    </label>
+                    <label class="schema-field schema col-12">JSON Schema
+                        <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
                     </label>
                     <div class="schema-actions">
-                        <button type="button" id="schema-remote-load" class="mini">Load</button>
-                        <span id="schema-remote-message" class="schema-message" role="status"></span>
+                        <button type="button" id="schema-save" class="primary">Save</button>
+                        <button type="button" id="schema-cancel-edit" class="ghost" hidden>Cancel</button>
+                        <span id="schema-message" class="schema-message" role="status"></span>
+                    </div>
+                </div>
+                <div id="schema-list" class="schema-list"></div>
+                <div class="settings-section">
+                    <div class="settings-form">
+                        <div class="field-row col-12">
+                            <label class="schema-field pattern">Load rules from URL
+                                <input id="schema-remote-url" type="text" placeholder="https://example.com/wireglass-rules.json"/>
+                            </label>
+                            <button type="button" id="schema-remote-load" class="field-action">Load</button>
+                        </div>
+                        <span id="schema-remote-message" class="schema-message col-12" role="status"></span>
                     </div>
                     <div id="schema-remote-sources" class="schema-list"></div>
                 </div>
             </div>
             <div class="schema-panel settings-pane" id="dashboard-panel" role="tabpanel" aria-labelledby="settings-tab-dashboards" hidden>
-                <label class="schema-field">Name
-                    <input id="dash-name" type="text" placeholder="Open in Grafana"/>
-                </label>
-                <label class="schema-field">System
-                    <span class="system-select">
-                        <img id="dash-system-icon" class="system-icon" src="icons/grafana.svg" alt="Grafana" loading="lazy"/>
-                        <select id="dash-system">
+                <div class="settings-form">
+                    <label class="schema-field col-3">Name
+                        <input id="dash-name" type="text" placeholder="Open in Grafana"/>
+                    </label>
+                    <label class="schema-field col-3">System
+                        <span class="system-select">
+                            <img id="dash-system-icon" class="system-icon" src="icons/grafana.svg" alt="Grafana" loading="lazy"/>
+                            <select id="dash-system">
+                                <option value="grafana">Grafana</option>
+                                <option value="splunk">Splunk</option>
+                                <option value="signalfx">SignalFx</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </span>
+                    </label>
+                    <label class="schema-field col-3">Scope
+                        <select id="dash-scope">
+                            <option value="packet">packet</option>
+                            <option value="global">global</option>
+                        </select>
+                    </label>
+                    <label class="schema-field col-3">Insert preset
+                        <select id="dash-preset">
+                            <option value="">—</option>
                             <option value="grafana">Grafana</option>
                             <option value="splunk">Splunk</option>
                             <option value="signalfx">SignalFx</option>
-                            <option value="custom">Custom</option>
                         </select>
-                    </span>
-                </label>
-                <label class="schema-field">Scope
-                    <select id="dash-scope">
-                        <option value="packet">packet</option>
-                        <option value="global">global</option>
-                    </select>
-                </label>
-                <label class="schema-field dashboard-preset-field">Insert preset
-                    <select id="dash-preset">
-                        <option value="">—</option>
-                        <option value="grafana">Grafana</option>
-                        <option value="splunk">Splunk</option>
-                        <option value="signalfx">SignalFx</option>
-                    </select>
-                </label>
-                <label class="schema-field pattern dashboard-url-field">URL template
-                    <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
-                    <span id="dash-url-preview" class="template-preview" aria-live="polite"></span>
-                </label>
-                <label class="schema-field dashboard-match-field">Match (packet, optional)
-                    <input id="dash-match" type="text" placeholder="api.example.com"/>
-                </label>
-                <label class="schema-field dashboard-window-field">Window ± min
-                    <input id="dash-window" type="number" min="1" max="1440" value="5"/>
-                </label>
-                <div class="schema-actions dashboard-actions">
-                    <button type="button" id="dash-save" class="primary">Save</button>
-                    <button type="button" id="dash-cancel-edit" class="mini" hidden>Cancel</button>
-                    <span id="dash-message" class="schema-message" role="status"></span>
+                    </label>
+                    <label class="schema-field pattern col-12">URL template
+                        <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
+                        <span id="dash-url-preview" class="template-preview" aria-live="polite"></span>
+                    </label>
+                    <label class="schema-field col-8">Match (packet, optional)
+                        <input id="dash-match" type="text" placeholder="api.example.com"/>
+                    </label>
+                    <label class="schema-field col-4">Window ± min
+                        <input id="dash-window" type="number" min="1" max="1440" value="5"/>
+                    </label>
+                    <div class="schema-actions">
+                        <button type="button" id="dash-save" class="primary">Save</button>
+                        <button type="button" id="dash-cancel-edit" class="ghost" hidden>Cancel</button>
+                        <span id="dash-message" class="schema-message" role="status"></span>
+                    </div>
                 </div>
                 <div id="dash-list" class="schema-list"></div>
             </div>
             <div class="schema-panel settings-pane" id="trace-panel" role="tabpanel" aria-labelledby="settings-tab-trace" hidden>
-                <label class="schema-field">Header
-                    <input id="trace-header" type="text" placeholder="x-b3-traceid"/>
-                </label>
-                <label class="schema-field pattern">URL template
-                    <input id="trace-url" type="text" placeholder="https://app.signalfx.com/#/apm/traces/{value}"/>
-                </label>
-                <div class="schema-actions">
-                    <button type="button" id="trace-save" class="primary">Save</button>
-                    <span id="trace-message" class="schema-message" role="status"></span>
+                <div class="settings-form">
+                    <label class="schema-field col-4">Header
+                        <input id="trace-header" type="text" placeholder="x-b3-traceid"/>
+                    </label>
+                    <label class="schema-field pattern col-8">URL template
+                        <input id="trace-url" type="text" placeholder="https://app.signalfx.com/#/apm/traces/{value}"/>
+                    </label>
+                    <div class="schema-actions">
+                        <button type="button" id="trace-save" class="primary">Save</button>
+                        <span id="trace-message" class="schema-message" role="status"></span>
+                    </div>
                 </div>
                 <div id="trace-list" class="schema-list"></div>
             </div>
-            <div class="language-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
-                <div class="language-options" role="group" aria-label="Interface language">
-                    <button type="button" class="language-option active" data-language="en" aria-pressed="true">English</button>
-                    <button type="button" class="language-option" data-language="ru" aria-pressed="false">Русский</button>
+            <div class="schema-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
+                <div class="settings-form">
+                    <div class="schema-field col-4">Interface language
+                        <div class="language-options" role="group" aria-label="Interface language">
+                            <button type="button" class="seg language-option active" data-language="en" aria-pressed="true">English</button>
+                            <button type="button" class="seg language-option" data-language="ru" aria-pressed="false">Русский</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

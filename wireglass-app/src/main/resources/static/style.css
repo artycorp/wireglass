@@ -136,6 +136,29 @@ button.primary:hover { filter: brightness(1.08); }
 button.danger { color: var(--err); }
 button:disabled { opacity: .45; cursor: default; }
 
+/* Button roles. Two sizes only: default (panel actions) and .mini (inside
+   list rows). Four intents: .primary, .ghost, .field-action, plain. */
+button.ghost {
+    background: transparent;
+    color: var(--muted);
+}
+button.ghost:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--accent);
+}
+button.field-action {
+    flex: 0 0 auto;
+    background: rgba(76,154,255,.12);
+    border-color: rgba(76,154,255,.45);
+    color: var(--accent);
+    font-weight: 600;
+    white-space: nowrap;
+}
+button.field-action:hover:not(:disabled) {
+    background: rgba(76,154,255,.2);
+    border-color: var(--accent);
+}
+
 .run-status { color: var(--muted); font-size: 13px; min-width: 120px; text-align: right; }
 
 .bodygrid {
@@ -362,16 +385,33 @@ button:disabled { opacity: .45; cursor: default; }
     color: var(--accent);
     background: rgba(76,154,255,.12);
 }
+/* ------------------------------------------------------------------
+   Settings panes share ONE layout system. Every pane is:
+       .schema-panel  >  .settings-form (12-col grid, capped)
+                      >  .schema-list   (saved items, full width)
+   A field claims width with .col-N; nothing declares its own grid.
+   ------------------------------------------------------------------ */
 .schema-panel {
-    display: grid;
-    grid-template-columns: minmax(180px, 1fr) 130px minmax(280px, 2fr) auto;
-    gap: 10px;
-    align-items: end;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
+.settings-form {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px 10px;
+    align-items: end;
+    max-width: 1100px;
+}
+.col-3 { grid-column: span 3; }
+.col-4 { grid-column: span 4; }
+.col-6 { grid-column: span 6; }
+.col-8 { grid-column: span 8; }
+.col-12 { grid-column: span 12; }
 .schema-field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
     color: var(--muted);
     font-size: 11px;
@@ -387,6 +427,15 @@ button:disabled { opacity: .45; cursor: default; }
 .schema-field.pattern input,
 .schema-field.schema textarea {
     font-family: var(--font-mono);
+}
+/* a field whose control carries a trailing action button */
+.field-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+.field-row .schema-field {
+    flex: 1 1 auto;
 }
 .system-select {
     position: relative;
@@ -413,28 +462,6 @@ button:disabled { opacity: .45; cursor: default; }
     box-sizing: border-box;
     object-fit: contain;
 }
-#dashboard-panel {
-    grid-template-columns: minmax(180px, 1fr) 130px 130px minmax(150px, 180px);
-}
-#dashboard-panel .dashboard-url-field,
-#trace-panel .schema-field.pattern { grid-column: 1 / -1; }
-#dashboard-panel .dashboard-preset-field {
-    grid-column: 4 / 5;
-    grid-row: 1;
-}
-#dashboard-panel .dashboard-match-field {
-    grid-column: 1 / 4;
-}
-#dashboard-panel .dashboard-window-field {
-    grid-column: 4 / 5;
-}
-#dashboard-panel .dashboard-actions {
-    grid-column: 1 / -1;
-    align-items: center;
-}
-#dashboard-panel .dashboard-actions #dash-save {
-    min-width: 180px;
-}
 .schema-field.schema textarea {
     min-height: 74px;
     resize: vertical;
@@ -444,16 +471,24 @@ button:disabled { opacity: .45; cursor: default; }
     padding: 7px 9px;
     border-radius: 5px;
     font-size: 12px;
+    font-family: var(--font-mono);
 }
+/* the action row sits in the same place in every pane */
 .schema-actions {
+    grid-column: 1 / -1;
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
 }
 .schema-message {
     min-height: 16px;
     color: var(--err);
     font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
 }
 .schema-message.ok { color: var(--ok); }
 .schema-list {
@@ -496,9 +531,12 @@ button:disabled { opacity: .45; cursor: default; }
     border-color: #d9b23c;
     background: rgba(217,178,60,.14);
 }
-.schema-remote {
-    margin-top: 14px;
-    padding-top: 12px;
+/* a secondary section inside a pane, same rhythm as the pane itself */
+.settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 14px;
     border-top: 1px solid var(--border-soft);
 }
 .schema-rule code {
@@ -520,10 +558,6 @@ button:disabled { opacity: .45; cursor: default; }
 .schema-rule .mini {
     flex: 0 0 auto;
 }
-.schema-delete {
-    padding: 2px 6px;
-    font-size: 11px;
-}
 .template-preview {
     display: block;
     min-height: 28px;
@@ -539,6 +573,7 @@ button:disabled { opacity: .45; cursor: default; }
     overflow-wrap: anywhere;
     text-transform: none;
     letter-spacing: 0;
+    font-weight: 400;
 }
 .template-empty {
     color: var(--muted);
@@ -561,26 +596,11 @@ button:disabled { opacity: .45; cursor: default; }
     background: rgba(210,153,34,.14);
     color: var(--warn);
 }
-.language-panel {
-    display: block;
-}
+/* language uses the same segmented control as the traffic-type filter (.seg) */
 .language-options {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-}
-.language-option {
-    min-width: 105px;
-    padding: 7px 12px;
-    color: var(--muted);
-    background: var(--bg-3);
-    border-color: var(--border);
-    font-weight: 600;
-}
-.language-option.active {
-    color: var(--text);
-    border-color: var(--accent);
-    background: rgba(76,154,255,.12);
+    gap: 6px;
 }
 
 /* empty-state row when filters hide everything */
@@ -1102,7 +1122,7 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 
 /* request-body editor toolbar */
 .field-head { display: flex; align-items: center; gap: 8px; }
-.mini { padding: 3px 9px; font-size: 12px; }
+.mini { padding: 4px 10px; font-size: 12px; }
 .body-err { color: var(--err); font-size: 12px; font-family: var(--font-mono); }
 .body-err.ok { color: var(--s2); }
 
@@ -1284,17 +1304,10 @@ td.c-latency { font-variant-numeric: tabular-nums; }
         flex-wrap: wrap;
     }
     .settings-tab { flex: 1 1 150px; justify-content: center; }
-    .schema-panel { grid-template-columns: minmax(0, 1fr); }
-    #dashboard-panel { grid-template-columns: minmax(0, 1fr); }
-    #dashboard-panel .dashboard-url-field,
-    #dashboard-panel .dashboard-preset-field,
-    #dashboard-panel .dashboard-match-field,
-    #dashboard-panel .dashboard-window-field,
-    #dashboard-panel .dashboard-actions {
-        grid-column: auto;
-        grid-row: auto;
-    }
-    .schema-actions { flex-direction: row; align-items: center; flex-wrap: wrap; }
+    /* one column: every .col-N field spans the full form width */
+    .settings-form { grid-template-columns: minmax(0, 1fr); }
+    .col-3, .col-4, .col-6, .col-8, .col-12 { grid-column: 1 / -1; }
+    .schema-actions { flex-wrap: wrap; }
     .schema-rule { width: 100%; min-width: 0; }
     .schema-rule code { max-width: none; min-width: 0; }
     th, td { padding: 7px 8px; }
