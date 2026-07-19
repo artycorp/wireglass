@@ -1410,11 +1410,14 @@ function loadLanguage() {
 function setLanguage(language, persist = true) {
     const selectedLanguage = language === 'ru' ? 'ru' : 'en';
     if (persist) localStorage.setItem(LANGUAGE_KEY, selectedLanguage);
+    setActiveLanguage(selectedLanguage);
+    document.documentElement.lang = selectedLanguage;
     el.languageOptions.forEach(option => {
         const selected = option.dataset.language === selectedLanguage;
         option.classList.toggle('active', selected);
         option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
+    applyTranslations(document);
 }
 
 function updateSettingsCounts() {

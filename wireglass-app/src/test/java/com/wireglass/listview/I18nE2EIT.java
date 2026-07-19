@@ -1,0 +1,98 @@
+package com.wireglass.listview;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Playwright;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class I18nE2EIT {
+
+    @LocalServerPort
+    int port;
+
+    private String originalUserHome;
+    private Path tempHome;
+
+    @BeforeEach
+    void isolateHome() throws Exception {
+        originalUserHome = System.getProperty("user.home");
+        tempHome = Files.createTempDirectory("wireglass-i18n-home");
+        System.setProperty("user.home", tempHome.toString());
+    }
+
+    @AfterEach
+    void restoreHome() {
+        if (originalUserHome != null) {
+            System.setProperty("user.home", originalUserHome);
+        }
+    }
+
+    private String baseUrl() {
+        return "http://localhost:" + port + "/";
+    }
+
+    @Test
+    void translationHelpersResolveKeysAndFallBack() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            Object english = page.evaluate("() => { setActiveLanguage('en'); return t('topbar.settings'); }");
+            assertThat(english).isEqualTo("Settings");
+
+            Object russian = page.evaluate("() => { setActiveLanguage('ru'); return t('topbar.settings'); }");
+            assertThat(russian).isEqualTo("Настройки");
+
+            Object missing = page.evaluate("() => t('no.such.key')");
+            assertThat(missing).isEqualTo("no.such.key");
+
+            Object interpolated = page.evaluate(
+                    "() => { setActiveLanguage('en'); return t('count.packets', { n: 7 }); }");
+            assertThat(interpolated).isEqualTo("7 packets");
+
+            Object pluralFew = page.evaluate(
+                    "() => plural(3, ['пакет', 'пакета', 'пакетов'])");
+            assertThat(pluralFew).isEqualTo("пакета");
+
+            Object pluralMany = page.evaluate(
+                    "() => plural(11, ['пакет', 'пакета', 'пакетов'])");
+            assertThat(pluralMany).isEqualTo("пакетов");
+
+            browser.close();
+        }
+    }
+
+    @Test
+    void switchingLanguageTranslatesAnnotatedMarkupWithoutDestroyingChildren() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            assertThat(page.innerText("#settings-toggle")).contains("Settings");
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+
+            assertThat(page.innerText("#settings-toggle")).contains("Настройки");
+            assertThat(page.querySelector("#settings-toggle .caret")).isNotNull();
+            assertThat(page.getAttribute("html", "lang")).isEqualTo("ru");
+
+            browser.close();
+        }
+    }
+}
