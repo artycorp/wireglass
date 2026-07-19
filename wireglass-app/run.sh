@@ -18,8 +18,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# skipPlaywrightInstall: the browser download is bound to pre-integration-test, and `install`
+# runs that phase, so without this flag every app start re-checks (and on a clean machine
+# downloads ~130MB of) chromium. -DskipTests does not cover it — that only gates surefire and
+# failsafe, while the download is a separate exec-maven-plugin execution. Only `mvn verify`
+# needs the browser.
 echo "[1/3] Compiling & packaging (skip tests)..."
-mvn -q -f "$ROOT_DIR/pom.xml" -pl wireglass-app -am -DskipTests install
+mvn -q -f "$ROOT_DIR/pom.xml" -pl wireglass-app -am -DskipTests -DskipPlaywrightInstall=true install
 
 cd "$ROOT_DIR/wireglass-app"
 
