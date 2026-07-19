@@ -184,4 +184,23 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void detailPaneIsTranslated() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+            page.click("#settings-back");
+
+            assertThat(page.innerText("#detail-content")).containsIgnoringCase("Выберите пакет");
+
+            browser.close();
+        }
+    }
 }

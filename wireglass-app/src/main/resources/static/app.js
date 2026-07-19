@@ -495,7 +495,7 @@ function appendRow(packet) {
         const shield = document.createElement('span');
         shield.className = 'valid-shield ' + (invalid ? 'invalid' : 'valid');
         shield.textContent = invalid ? '✗' : '✓';
-        shield.title = invalid ? 'Schema: invalid' : 'Schema: valid';
+        shield.title = invalid ? t('detail.schemaInvalid') : t('detail.schemaValid');
         row.querySelector('.c-valid').appendChild(shield);
     }
     const timeCell = row.querySelector('.c-time');
@@ -625,7 +625,12 @@ function restoreDetail() {
 
 function renderDetail(packet) {
     detailBodies = [];
-    if (!packet) { teardownDetailScrollSpy(); el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
+    if (!packet) {
+        teardownDetailScrollSpy();
+        el.detail.innerHTML = '<div class="empty"><span>' + esc(t('detail.emptyTitle')) + '</span><strong>'
+            + esc(t('detail.emptyBody')) + '</strong><em>' + esc(t('detail.emptyHint')) + '</em></div>';
+        return;
+    }
     const validation = validatePacket(packet);
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -636,34 +641,38 @@ function renderDetail(packet) {
         + '<div class="detail-hero">'
         + '<div class="detail-kicker"><span class="method-chip">' + esc(packet.method) + '</span>' + statusBadge + '<span>' + esc(packet.type) + '</span></div>'
         + '<h2>' + title + '</h2>'
-        + '<div class="meta">' + esc(packet.threadName) + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">body truncated</span>' : '') + '</div>'
+        + '<div class="meta">' + esc(packet.threadName)
+        + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">' + esc(t('detail.bodyTruncated')) + '</span>' : '')
+        + '</div>'
         + '</div>'
         + '<div class="detail-metrics">'
-        + detailMetric('elapsed', packet.elapsedMs, 'ms')
-        + detailMetric('connect', packet.connectMs, 'ms')
-        + detailMetric('latency', packet.latencyMs, 'ms')
-        + detailMetric('response', packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
+        + detailMetric(t('detail.metric.elapsed'), packet.elapsedMs, 'ms')
+        + detailMetric(t('detail.metric.connect'), packet.connectMs, 'ms')
+        + detailMetric(t('detail.metric.latency'), packet.latencyMs, 'ms')
+        + detailMetric(t('detail.metric.response'), packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
         + '</div>'
         + '<div class="detail-tabs" role="navigation" aria-label="Packet sections">'
-        + '<button type="button" class="detail-tab active" data-jump="overview">Overview</button>'
-        + '<button type="button" class="detail-tab" data-jump="headers">Headers</button>'
-        + '<button type="button" class="detail-tab" data-jump="bodies">Bodies</button>'
-        + '<button type="button" class="detail-tab" data-jump="raw">Raw</button>'
+        + '<button type="button" class="detail-tab active" data-jump="overview">' + esc(t('detail.tab.overview')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="headers">' + esc(t('detail.tab.headers')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="bodies">' + esc(t('detail.tab.bodies')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="raw">' + esc(t('detail.tab.raw')) + '</button>'
         + '</div>'
-        + '<section class="detail-section" id="detail-overview"><h3>Overview</h3>'
+        + '<section class="detail-section" id="detail-overview"><h3>' + esc(t('detail.overview')) + '</h3>'
         + '<div class="overview-grid">'
-        + overviewPill('Method', 'c-method ' + methodClass(packet.method), 'method-pill', packet.method)
-        + overviewPill('Status', 'c-status ' + statusClass(packet.status), 'status-pill', packet.status || (packet.success ? 'OK' : 'ERR'))
-        + overviewPill('Type', 'c-type ' + typeClass(packet.type), 'type-pill', packet.type)
-        + overviewPill('Thread', 'thread-value', '', packet.threadName || '-')
+        + overviewPill(t('detail.pill.method'), 'c-method ' + methodClass(packet.method), 'method-pill', packet.method)
+        + overviewPill(t('detail.pill.status'), 'c-status ' + statusClass(packet.status), 'status-pill', packet.status || (packet.success ? 'OK' : 'ERR'))
+        + overviewPill(t('detail.pill.type'), 'c-type ' + typeClass(packet.type), 'type-pill', packet.type)
+        + overviewPill(t('detail.pill.thread'), 'thread-value', '', packet.threadName || '-')
         + '</div></section>'
         + validationSection(validation)
         + dashboardSectionPlaceholder()
-        + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
-        + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
+        + '<section class="detail-section" id="detail-headers">' + sectionHeaders(t('detail.requestHeaders'), packet.requestHeaders, 'outgoing')
+        + sectionHeaders(t('detail.responseHeaders'), packet.responseHeaders, 'incoming') + '</section>'
         + '<section class="detail-section" id="detail-bodies">' + bodyBlock(packet.id, reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
         + bodyBlock(packet.id, respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
-        + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
+        + (packet.failureMessage
+            ? '<section class="detail-section" id="detail-raw"><h3>' + esc(t('detail.failure')) + '</h3><pre>' + esc(packet.failureMessage) + '</pre></section>'
+            : '<section class="detail-section" id="detail-raw"><h3>' + esc(t('detail.raw')) + '</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
     mountDashboardLinks(packet);
@@ -671,7 +680,7 @@ function renderDetail(packet) {
 }
 
 function detailMetric(label, value, suffix) {
-    return '<div class="metric"><span>' + label + '</span><strong>' + esc(value == null ? '-' : value) + '</strong><em>' + suffix + '</em></div>';
+    return '<div class="metric"><span>' + esc(label) + '</span><strong>' + esc(value == null ? '-' : value) + '</strong><em>' + suffix + '</em></div>';
 }
 
 function overviewPill(label, valueClass, pillClass, value) {
@@ -683,25 +692,25 @@ function overviewPill(label, valueClass, pillClass, value) {
 
 function validationSection(validation) {
     if (!validation.results.length) {
-        return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>'
-            + '<div class="validation-empty">No matching schema rules.</div></section>';
+        return '<section class="detail-section validation-section" id="detail-validation"><h3>' + esc(t('detail.validation')) + '</h3>'
+            + '<div class="validation-empty">' + esc(t('detail.validationEmpty')) + '</div></section>';
     }
     const rules = validation.results.map(result => {
         const errors = result.errors.length
             ? '<ul>' + result.errors.map(e => '<li><code>' + esc(e.path) + '</code> ' + esc(e.message) + '</li>').join('') + '</ul>'
-            : '<div class="validation-ok">Body matches schema.</div>';
+            : '<div class="validation-ok">' + esc(t('detail.validationOk')) + '</div>';
         return '<div class="validation-rule ' + (result.errors.length ? 'invalid' : 'valid') + '">'
             + '<div class="validation-head"><span class="validation-target">' + esc(result.target) + '</span>'
             + '<code>' + esc(result.pattern) + '</code>'
-            + '<strong>' + (result.errors.length ? 'invalid' : 'valid') + '</strong></div>'
+            + '<strong>' + esc(result.errors.length ? t('detail.invalid') : t('detail.valid')) + '</strong></div>'
             + errors
             + '</div>';
     }).join('');
-    return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>' + rules + '</section>';
+    return '<section class="detail-section validation-section" id="detail-validation"><h3>' + esc(t('detail.validation')) + '</h3>' + rules + '</section>';
 }
 
 function dashboardSectionPlaceholder() {
-    return '<section class="detail-section" id="detail-dashboards"><h3>Dashboards</h3>'
+    return '<section class="detail-section" id="detail-dashboards"><h3>' + esc(t('detail.dashboards')) + '</h3>'
         + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
@@ -779,7 +788,7 @@ function bodyBlock(packetId, title, body, binary, truncated, target, validationE
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
     const toggle = mode ? viewToggleHtml(i) : '';
     const expand = ' <button type="button" class="body-expand" data-body="' + i
-        + '" title="Expand to full screen" aria-label="Expand">⤢</button>';
+        + '" title="' + esc(t('detail.expandTitle')) + '" aria-label="' + esc(t('detail.expandTitle')) + '">⤢</button>';
     return '<div class="body-block" data-body="' + i + '"><h3>' + title + note + toggle + expand + '</h3>'
         + '<div class="cm-host" id="body-view-' + i + '"></div></div>';
 }
@@ -902,7 +911,7 @@ function markMissingField(cm, code, error) {
     const line = parentPos ? parentPos.from.line : 0;
     const marker = document.createElement('span');
     marker.className = 'cm-schema-missing';
-    marker.textContent = '⚠ missing "' + key + '"';
+    marker.textContent = t('detail.missingKey', { key: key });
     marker.title = error.message;
     cm.addLineWidget(line, marker, { coverGutter: false, noHScroll: true });
 }
@@ -986,13 +995,13 @@ function mountDetailScrollSpy() {
 // field on CapturedPacket — a backend change — so this is the honest view from current data.)
 function reqTitle(p) {
     return p.type === 'WEBSOCKET'
-        ? '<span class="ws-dir up">↑</span>Sent frame'
-        : 'Request body';
+        ? '<span class="ws-dir up">↑</span>' + esc(t('detail.sentFrame'))
+        : esc(t('detail.requestBody'));
 }
 function respTitle(p) {
     return p.type === 'WEBSOCKET'
-        ? '<span class="ws-dir down">↓</span>Received frame'
-        : 'Response body';
+        ? '<span class="ws-dir down">↓</span>' + esc(t('detail.receivedFrame'))
+        : esc(t('detail.responseBody'));
 }
 
 function esc(s) {
@@ -1296,7 +1305,7 @@ function mountDashboardLinks(packet) {
     if (!host || !packet) return;
     host.innerHTML = '';
     const links = packetDashboardLinks(packet);
-    if (!links.length) { host.innerHTML = '<div class="dash-empty">No dashboard links.</div>'; return; }
+    if (!links.length) { host.innerHTML = '<div class="dash-empty">' + esc(t('detail.noDashboards')) + '</div>'; return; }
     links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
 }
 
