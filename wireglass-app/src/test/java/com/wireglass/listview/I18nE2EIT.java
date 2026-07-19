@@ -152,6 +152,8 @@ class I18nE2EIT {
             assertThat(facets).contains("все").contains("любой");
             assertThat(facets).contains("HTTP").contains("WS").contains("TCP").contains("2xx");
 
+            assertThat(page.getAttribute("#detail-restore", "title")).isEqualTo("Показать инспектор");
+
             browser.close();
         }
     }
