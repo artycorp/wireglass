@@ -1776,16 +1776,16 @@ el.languageOptions.forEach(option => {
 
 el.schemaSave.addEventListener('click', () => {
     const pattern = el.schemaPattern.value.trim();
-    if (!pattern) { setSchemaMessage('URL pattern is required', false); return; }
+    if (!pattern) { setSchemaMessage(t('msg.patternRequired'), false); return; }
     let schema;
     try {
         schema = JSON.parse(el.schemaJson.value);
     } catch (e) {
-        setSchemaMessage('Schema JSON: ' + e.message, false);
+        setSchemaMessage(t('msg.schemaJsonError', { error: e.message }), false);
         return;
     }
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-        setSchemaMessage('Schema must be a JSON object', false);
+        setSchemaMessage(t('msg.schemaNotObject'), false);
         return;
     }
     const name = el.schemaName.value.trim();
@@ -1835,7 +1835,7 @@ el.schemaList.addEventListener('click', (ev) => {
         computeEffectiveSchemaRules();
         renderSchemaRules();
         rerenderSelectedDetail();
-        setSchemaMessage('Reset to server version', true);
+        setSchemaMessage(t('msg.resetToServer'), true);
         return;
     }
     const editBt = ev.target.closest('.schema-edit');
@@ -1906,8 +1906,8 @@ el.dashWindow.addEventListener('change', () => {
 el.dashSave.addEventListener('click', () => {
     const name = el.dashName.value.trim();
     const urlTemplate = el.dashUrl.value.trim();
-    if (!name) { setDashMessage('Name is required', false); return; }
-    if (!urlTemplate) { setDashMessage('URL template is required', false); return; }
+    if (!name) { setDashMessage(t('msg.nameRequired'), false); return; }
+    if (!urlTemplate) { setDashMessage(t('msg.urlTemplateRequired'), false); return; }
     const fields = {
         name, system: el.dashSystem.value, scope: el.dashScope.value,
         urlTemplate, match: el.dashMatch.value.trim(),
