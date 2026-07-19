@@ -237,6 +237,25 @@ button.field-action:hover:not(:disabled) {
     color: var(--accent);
     text-transform: lowercase;
 }
+/* a run reconstructed from a session file, not captured live */
+.run-chip .restored-badge {
+    margin-left: 2px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(210,153,34,.16);
+    color: var(--warn);
+    font-size: 10px;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+.session-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+.session-actions .schema-message { white-space: nowrap; }
 .facets { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
 .facet-group { display: flex; align-items: center; gap: 5px; }
 .facet-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }

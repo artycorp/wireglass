@@ -70,6 +70,14 @@
             <div class="runs-toolbar">
                 <button type="button" id="run-all" class="run-chip active" data-i18n="facets.allRuns">All runs</button>
                 <div id="run-list" class="run-list"></div>
+                <div class="session-actions">
+                    <button type="button" id="session-save" class="mini" data-i18n="session.save"
+                            data-i18n-title="session.saveTitle">Save session</button>
+                    <button type="button" id="session-load" class="mini" data-i18n="session.load"
+                            data-i18n-title="session.loadTitle">Load session</button>
+                    <input type="file" id="session-file" accept="application/json,.json" hidden/>
+                    <span id="session-message" class="schema-message" role="status"></span>
+                </div>
             </div>
             <div class="facets">
                 <div class="facet-group" role="group" aria-label="Type">

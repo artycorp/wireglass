@@ -13,5 +13,21 @@ public record RunSummary(
         int threads,
         int iterations,
         int capturedSamples,
-        int errorSamples) {
+        int errorSamples,
+        boolean restored) {
+
+    public RunSummary asRestored() {
+        return new RunSummary(
+                id,
+                source,
+                state,
+                startedAt,
+                finishedAt,
+                label,
+                threads,
+                iterations,
+                capturedSamples,
+                errorSamples,
+                true);
+    }
 }
