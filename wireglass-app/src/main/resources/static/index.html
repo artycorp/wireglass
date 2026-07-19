@@ -12,24 +12,24 @@
 <body>
 <header class="topbar">
     <div class="brand">wire<span>glass</span> ⌁</div>
-    <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel">
+    <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel" data-i18n="topbar.newRun">
         <span class="plus">+</span> New run <span class="caret">▾</span>
     </button>
     <button type="button" id="settings-toggle" class="run-toggle settings-toggle" aria-expanded="false" aria-controls="settings-panel" data-i18n="topbar.settings">
         Settings <span class="caret">▾</span>
     </button>
-    <div id="run-status" class="run-status">idle</div>
+    <div id="run-status" class="run-status" data-i18n="topbar.idle">idle</div>
     <div id="global-links" class="global-links"></div>
-    <button type="button" id="clear-btn" class="toolbar-clear danger" title="Clear captured packets">Clear</button>
+    <button type="button" id="clear-btn" class="toolbar-clear danger" data-i18n="topbar.clear" data-i18n-title="topbar.clearTitle" title="Clear captured packets">Clear</button>
 </header>
 
 <section id="run-panel" class="run-panel">
     <form id="run-form" class="run-form">
-        <label class="field f-grow">url
+        <label class="field f-grow" data-i18n="form.url">url
             <input id="f-url" name="url" type="text" placeholder="https://httpbin.org/get"
                    value="https://httpbin.org/get" required/>
         </label>
-        <label class="field">method
+        <label class="field" data-i18n="form.method">method
             <select id="f-method" name="method">
                 <option>GET</option>
                 <option>POST</option>
@@ -39,26 +39,26 @@
                 <option>HEAD</option>
             </select>
         </label>
-        <label class="field">threads
+        <label class="field" data-i18n="form.threads">threads
             <input id="f-threads" name="threads" type="number" min="1" max="100" value="2"/>
         </label>
-        <label class="field">iterations
+        <label class="field" data-i18n="form.iterations">iterations
             <input id="f-iterations" name="iterations" type="number" min="1" max="1000" value="3"/>
         </label>
-        <label class="field" id="f-contentType-field">content-type
+        <label class="field" id="f-contentType-field" data-i18n="form.contentType">content-type
             <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
         </label>
         <div class="field f-grow" id="f-body-field" hidden>
-            <span class="field-head">body
-                <button type="button" id="f-body-format" class="mini" title="Pretty-print JSON">Format</button>
+            <span class="field-head" data-i18n="form.body">body
+                <button type="button" id="f-body-format" class="mini" data-i18n="form.format" data-i18n-title="form.formatTitle" title="Pretty-print JSON">Format</button>
                 <span id="f-body-err" class="body-err" role="status"></span>
             </span>
             <textarea id="f-body" name="body" placeholder='{"k":"v"}' rows="2"></textarea>
         </div>
         <div class="run-actions">
-            <button type="submit" class="primary">Run</button>
-            <button type="button" id="demo-btn">Demo</button>
-            <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
+            <button type="submit" class="primary" data-i18n="form.run">Run</button>
+            <button type="button" id="demo-btn" data-i18n="form.demo">Demo</button>
+            <button type="button" id="stop-btn" class="danger" disabled data-i18n="form.stop">Stop</button>
         </div>
     </form>
 </section>

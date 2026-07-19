@@ -1,11 +1,41 @@
 const WG_I18N = {
     en: {
         'topbar.settings': 'Settings',
-        'count.packets': '{n} packets'
+        'count.packets': '{n} packets',
+        'topbar.newRun': 'New run',
+        'topbar.idle': 'idle',
+        'topbar.clear': 'Clear',
+        'topbar.clearTitle': 'Clear captured packets',
+        'form.url': 'url',
+        'form.method': 'method',
+        'form.threads': 'threads',
+        'form.iterations': 'iterations',
+        'form.contentType': 'content-type',
+        'form.body': 'body',
+        'form.format': 'Format',
+        'form.formatTitle': 'Pretty-print JSON',
+        'form.run': 'Run',
+        'form.demo': 'Demo',
+        'form.stop': 'Stop'
     },
     ru: {
         'topbar.settings': 'Настройки',
-        'count.packets': '{n} пакетов'
+        'count.packets': '{n} пакетов',
+        'topbar.newRun': 'Новый прогон',
+        'topbar.idle': 'ожидание',
+        'topbar.clear': 'Очистить',
+        'topbar.clearTitle': 'Очистить захваченные пакеты',
+        'form.url': 'адрес',
+        'form.method': 'метод',
+        'form.threads': 'потоки',
+        'form.iterations': 'итерации',
+        'form.contentType': 'content-type',
+        'form.body': 'тело',
+        'form.format': 'Формат',
+        'form.formatTitle': 'Форматировать JSON',
+        'form.run': 'Запустить',
+        'form.demo': 'Демо',
+        'form.stop': 'Стоп'
     }
 };
 

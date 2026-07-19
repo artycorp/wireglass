@@ -103,4 +103,30 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void runFormIsTranslated() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+            page.click("#settings-back");
+            page.click("#run-toggle");
+
+            assertThat(page.innerText("#run-toggle")).contains("Новый прогон");
+            assertThat(page.innerText("#run-form")).containsIgnoringCase("адрес")
+                    .containsIgnoringCase("потоки").containsIgnoringCase("итерации");
+            assertThat(page.innerText(".run-actions")).contains("Запустить").contains("Демо").contains("Стоп");
+            assertThat(page.getAttribute("#f-body-format", "title")).isEqualTo("Форматировать JSON");
+            assertThat(page.querySelector("#f-url")).isNotNull();
+            assertThat(page.querySelector("#f-body-err")).isNotNull();
+
+            browser.close();
+        }
+    }
 }
