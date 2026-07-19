@@ -152,7 +152,8 @@ public class TestRunService {
                 run.request.threads(),
                 run.request.iterations(),
                 run.captured.get(),
-                run.errors.get());
+                run.errors.get(),
+                false);
     }
 
     private DslTestPlan buildPlan(RunRequest request, UUID runId) {

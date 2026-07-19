@@ -40,6 +40,23 @@ public class PacketRepository {
         }
     }
 
+    public int importAll(List<CapturedPacket> packets) {
+        lock.lock();
+        try {
+            int added = 0;
+            for (CapturedPacket packet : packets) {
+                if (packet == null || packet.id() == null || index.containsKey(packet.id())) {
+                    continue;
+                }
+                add(packet);
+                added++;
+            }
+            return added;
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public CapturedPacket get(UUID id) {
         lock.lock();
         try {

@@ -98,6 +98,8 @@ second starts the app.
 | GET    | `/api/packets?limit=200`   | Recent packets (post-run).               |
 | GET    | `/api/packets/{id}`        | Single packet detail.                    |
 | DELETE | `/api/packets`             | Clear the in-memory packet history.      |
+| GET    | `/api/session/export`      | Download all runs + packets as one JSON session file. |
+| POST   | `/api/session/import`      | Add the runs + packets from a session file to the current view; imported runs are flagged `restored`. |
 | WS     | `/api/ingest`              | Ingestion endpoint for external jmeter-java-dsl clients (each frame is a `CapturedPacket` JSON). |
 
 `RunRequest`:
@@ -193,3 +195,22 @@ The app can load read-only JSON Schema rules and dashboard links from two source
 with no configuration and auto-created empty on first run, and a server-hosted JSON file configured
 by `app.listview.remote-config-url` — useful for a shared/centralized install. Both use the same
 format, documented in [`docs/server-config-format.md`](docs/server-config-format.md).
+
+## Saving and comparing sessions
+
+Captured traffic lives only in memory, so a restart loses it. **Save session** (next to the run
+selector) downloads everything currently held — every run and every packet — as a single JSON file.
+**Load session** puts a file back.
+
+Loading **adds** to what is already there rather than replacing it, and each loaded run keeps its
+identity in the run selector with a `from file` badge. That is the comparison mechanism: load two
+session files and switch between their run chips to compare a baseline against a new run, or compare
+a colleague's captured traffic against your own. Packets whose id is already present are skipped, so
+loading the same file twice changes nothing.
+
+The file carries a `version` field; a file from an incompatible version is rejected rather than
+partially imported.
+
+> Session files contain full request and response bodies, including decrypted HTTPS and any
+> credentials or tokens that appeared in them. Treat a session file as sensitive before attaching it
+> to a ticket.

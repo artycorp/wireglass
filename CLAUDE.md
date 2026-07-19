@@ -79,6 +79,16 @@ Wireglass — web traffic inspector on top of jmeter-java-dsl. Multi-module Mave
   `CapturedPacket.withRunId(UUID)` exists at startup — that's what turns a stale `~/.m2` client (see
   the `-am` note above) into a clear boot failure instead of a runtime `NoSuchMethodError`. If you add
   a `CapturedPacket` method the app depends on, consider pinning it there too.
+- Session files (`web/SessionController`, `dto/SessionFile`): `GET /api/session/export` dumps
+  `RunRepository` + `PacketRepository` into one versioned JSON; `POST /api/session/import` **merges**
+  it back (never replaces — comparing two sessions side by side is the whole point) and flags every
+  imported run via `RunSummary.asRestored()`. The UI shows that flag as a `from file` badge on the
+  existing run chip, so comparison reuses the run selector instead of adding a second mechanism.
+  Dedup is by packet `id` inside `PacketRepository.importAll`, which holds the lock across the
+  contains-check and the insert — do not reimplement it as `get()` then `add()`. Bump
+  `SessionFile.CURRENT_VERSION` whenever the shape changes; imports of any other version are rejected
+  whole. Note imports still pass through the ring buffer, so loading more than
+  `app.listview.ring-buffer-size` packets evicts the oldest.
 - Extractor ORDER MATTERS: HTTP → WebSocket → TCP. `TcpPacketExtractor.supports()` always returns
   true (catch-all), so it must stay last; see `TrafficCaptureListenerFactory.orderedExtractors()`.
 - Server-provided rules/dashboards (`capture/RemoteConfigService`, `web/RemoteConfigController`):

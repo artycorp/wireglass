@@ -58,6 +58,10 @@ const el = {
     clear: document.getElementById('clear-btn'),
     runAll: document.getElementById('run-all'),
     runList: document.getElementById('run-list'),
+    sessionSave: document.getElementById('session-save'),
+    sessionLoad: document.getElementById('session-load'),
+    sessionFile: document.getElementById('session-file'),
+    sessionMessage: document.getElementById('session-message'),
     status: document.getElementById('run-status'),
     tbody: document.getElementById('packet-body'),
     count: document.getElementById('packet-count'),
@@ -445,6 +449,7 @@ function renderRunList() {
         + '<span class="src">' + esc(run.source) + '</span> '
         + '<span class="rid">#' + esc(shortId(run.id)) + '</span> '
         + '<span class="state">' + esc(run.state) + '</span>'
+        + (run.restored ? ' <span class="restored-badge">' + esc(t('session.restored')) + '</span>' : '')
         + '</button>').join('');
 }
 
@@ -1751,6 +1756,79 @@ if (el.runList) {
         const bt = ev.target.closest('.run-chip[data-run-id]');
         if (!bt) return;
         selectRun(bt.dataset.runId);
+    });
+}
+
+function sessionMessage(text, kind) {
+    if (!el.sessionMessage) return;
+    el.sessionMessage.textContent = text;
+    el.sessionMessage.classList.toggle('ok', kind === 'ok');
+}
+
+function wordForms(ru, en) {
+    return activeLanguage() === 'ru' ? ru : en;
+}
+
+async function saveSession() {
+    try {
+        const r = await fetch('/api/session/export');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const blob = await r.blob();
+        const disposition = r.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="([^"]+)"/);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = match ? match[1] : 'wireglass-session.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        sessionMessage(t('session.saved'), 'ok');
+    } catch (e) {
+        sessionMessage(t('session.exportFailed', { reason: e.message }), 'err');
+    }
+}
+
+async function loadSessionFile(file) {
+    try {
+        const text = await file.text();
+        const r = await fetch('/api/session/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: text
+        });
+        const payload = await r.json();
+        if (!r.ok) throw new Error(payload && payload.message ? payload.message : 'HTTP ' + r.status);
+        await loadRuns();
+        await loadRecent();
+        if (payload.importedPackets === 0) {
+            sessionMessage(t('session.importedNothing'), 'ok');
+            return;
+        }
+        sessionMessage(t('session.imported', {
+            runs: payload.importedRuns,
+            runWord: plural(payload.importedRuns,
+                wordForms(['прогон', 'прогона', 'прогонов'], ['run', 'runs', 'runs'])),
+            packets: payload.importedPackets,
+            packetWord: plural(payload.importedPackets,
+                wordForms(['пакет', 'пакета', 'пакетов'], ['packet', 'packets', 'packets']))
+        }), 'ok');
+    } catch (e) {
+        sessionMessage(t('session.importFailed', { reason: e.message }), 'err');
+    }
+}
+
+if (el.sessionSave) {
+    el.sessionSave.addEventListener('click', saveSession);
+}
+if (el.sessionLoad && el.sessionFile) {
+    el.sessionLoad.addEventListener('click', () => { el.sessionFile.click(); });
+    el.sessionFile.addEventListener('change', async () => {
+        const file = el.sessionFile.files && el.sessionFile.files[0];
+        if (!file) return;
+        await loadSessionFile(file);
+        el.sessionFile.value = '';
     });
 }
 

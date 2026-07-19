@@ -118,7 +118,8 @@ public class IngestionWebSocketHandler extends TextWebSocketHandler {
                 packet.groupThreads(),
                 0,
                 captured + 1,
-                errors + (packet.success() ? 0 : 1)));
+                errors + (packet.success() ? 0 : 1),
+                false));
     }
 
     private void finishRun(UUID runId) {
@@ -136,6 +137,7 @@ public class IngestionWebSocketHandler extends TextWebSocketHandler {
                 existing.threads(),
                 existing.iterations(),
                 existing.capturedSamples(),
-                existing.errorSamples()));
+                existing.errorSamples(),
+                existing.restored()));
     }
 }
