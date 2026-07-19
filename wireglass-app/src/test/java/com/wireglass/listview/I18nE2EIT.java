@@ -238,4 +238,55 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void switchingLanguageKeepsPacketsAndSelection() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.addInitScript("localStorage.setItem('listview.schemaRules', JSON.stringify(["
+                    + "{\"id\":\"task7\",\"name\":\"demo shape\",\"pattern\":\"/api/demo/http\","
+                    + "\"target\":\"response\",\"schema\":{\"type\":\"object\"}}]))");
+            page.navigate(baseUrl());
+
+            page.click("#run-toggle");
+            page.click("#demo-btn");
+            page.waitForFunction(
+                    "() => document.querySelectorAll('#packet-body tr.pkt').length === 6");
+            int before = page.querySelectorAll("#packet-body tr.pkt").size();
+
+            page.click("#packet-body tr.pkt");
+            assertThat(page.innerText("#detail-content")).containsIgnoringCase("Overview");
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+            page.click("#settings-back");
+
+            assertThat(page.querySelectorAll("#packet-body tr.pkt")).hasSize(before);
+            assertThat(page.querySelector("#packet-body tr.pkt.selected")).isNotNull();
+            assertThat(page.innerText("#packet-table thead")).containsIgnoringCase("задержка");
+
+            String detail = page.innerText("#detail-content");
+            assertThat(detail)
+                    .containsIgnoringCase("Обзор")
+                    .containsIgnoringCase("Заголовки")
+                    .containsIgnoringCase("Тела")
+                    .containsIgnoringCase("Исходник")
+                    .containsIgnoringCase("Метод")
+                    .containsIgnoringCase("Статус")
+                    .containsIgnoringCase("Тип")
+                    .containsIgnoringCase("Поток")
+                    .containsIgnoringCase("Заголовки запроса")
+                    .containsIgnoringCase("Заголовки ответа");
+
+            assertThat(page.innerText("#detail-overview .method-pill")).isEqualTo("GET");
+            assertThat(page.innerText("#detail-overview .type-pill")).isEqualTo("HTTP");
+            assertThat(page.innerText("#detail-validation .validation-target"))
+                    .isEqualToIgnoringCase("response");
+
+            browser.close();
+        }
+    }
 }

@@ -521,6 +521,7 @@ function appendRow(packet) {
     const size = packet.responseBody ? packet.responseBody.length : 0;
     row.querySelector('.c-size').textContent = (size / 1024).toFixed(2);
     if (!packet.success) row.classList.add('err');
+    if (packet.id === state.selectedId) row.classList.add('selected');
     row.addEventListener('click', () => selectPacket(packet.id, row));
     el.tbody.appendChild(row);
 }
@@ -1427,7 +1428,20 @@ function setLanguage(language, persist = true) {
         option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     applyTranslations(document);
-    updateCount(el.tbody.querySelectorAll('tr.pkt').length);
+    retranslateRenderedContent();
+}
+
+function retranslateRenderedContent() {
+    renderRunList();
+    renderSchemaRules();
+    renderDashboardList();
+    renderTraceLinks();
+    renderGlobalLinks();
+    renderUrlSchemaSources();
+    renderActiveFilters();
+    updateSortIndicators();
+    rebuildList();
+    rerenderSelectedDetail();
 }
 
 function updateSettingsCounts() {
