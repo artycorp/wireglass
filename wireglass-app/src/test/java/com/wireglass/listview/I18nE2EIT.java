@@ -157,4 +157,31 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void settingsPanesAreTranslated() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+
+            assertThat(page.innerText(".settings-head")).contains("Настройки");
+            assertThat(page.innerText("#settings-tab-dashboards")).contains("Дашборды");
+            assertThat(page.innerText("#settings-tab-language")).contains("Язык");
+            assertThat(page.innerText("#settings-back")).contains("Назад к трафику");
+
+            page.click("#settings-tab-schema");
+            assertThat(page.innerText("#schema-panel")).containsIgnoringCase("Имя")
+                    .containsIgnoringCase("Шаблон URL").contains("Сохранить");
+            assertThat(page.innerText("#schema-target")).contains("response").contains("request");
+            assertThat(page.querySelector("#schema-count")).isNotNull();
+
+            browser.close();
+        }
+    }
 }
