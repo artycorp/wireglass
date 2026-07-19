@@ -651,7 +651,7 @@ function renderDetail(packet) {
         + detailMetric(t('detail.metric.latency'), packet.latencyMs, 'ms')
         + detailMetric(t('detail.metric.response'), packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
         + '</div>'
-        + '<div class="detail-tabs" role="navigation" aria-label="Packet sections">'
+        + '<div class="detail-tabs" role="navigation" aria-label="' + esc(t('detail.sectionsAria')) + '">'
         + '<button type="button" class="detail-tab active" data-jump="overview">' + esc(t('detail.tab.overview')) + '</button>'
         + '<button type="button" class="detail-tab" data-jump="headers">' + esc(t('detail.tab.headers')) + '</button>'
         + '<button type="button" class="detail-tab" data-jump="bodies">' + esc(t('detail.tab.bodies')) + '</button>'
@@ -761,7 +761,7 @@ function sectionHeaders(title, headers, direction) {
     }
     const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
     const label = kind === 'incoming' ? 'incoming' : 'outgoing';
-    return '<div class="headers-card ' + kind + '"><h3>' + title
+    return '<div class="headers-card ' + kind + '"><h3>' + esc(title)
         + '<span class="headers-direction">' + label + '</span></h3>'
         + '<table class="kv headers-table">' + rows + '</table></div>';
 }
@@ -775,14 +775,14 @@ const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of 
 function bodyBlock(packetId, title, body, binary, truncated, target, validationErrors, validationState) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
-        + (truncated ? ' (truncated)' : '');
+        + (truncated ? esc(t('detail.truncated')) : '');
     let code = body;
     let mode = null;
     if (!binary) {
         const lang = detectLangCached(packetId, target, body);
         if (lang) { code = lang.code; mode = lang.mode; }
     } else {
-        note += ' (binary — hex preview)';
+        note += esc(t('detail.binaryHex'));
     }
     const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [], validationState: validationState || null }) - 1;
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
@@ -794,9 +794,9 @@ function bodyBlock(packetId, title, body, binary, truncated, target, validationE
 }
 
 function viewToggleHtml(i) {
-    return ' <span class="body-toggle" role="group" aria-label="View mode">'
-        + '<button type="button" class="bt active" data-body="' + i + '" data-raw="0">Formatted</button>'
-        + '<button type="button" class="bt" data-body="' + i + '" data-raw="1">Raw</button>'
+    return ' <span class="body-toggle" role="group" aria-label="' + esc(t('detail.viewModeAria')) + '">'
+        + '<button type="button" class="bt active" data-body="' + i + '" data-raw="0">' + esc(t('detail.formatted')) + '</button>'
+        + '<button type="button" class="bt" data-body="' + i + '" data-raw="1">' + esc(t('detail.rawView')) + '</button>'
         + '</span>';
 }
 

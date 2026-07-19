@@ -108,7 +108,13 @@ const WG_I18N = {
         'detail.expandTitle': 'Expand to full screen',
         'detail.schemaValid': 'Schema: valid',
         'detail.schemaInvalid': 'Schema: invalid',
-        'detail.missingKey': '⚠ missing "{key}"'
+        'detail.missingKey': '⚠ missing "{key}"',
+        'detail.truncated': ' (truncated)',
+        'detail.binaryHex': ' (binary — hex preview)',
+        'detail.sectionsAria': 'Packet sections',
+        'detail.formatted': 'Formatted',
+        'detail.rawView': 'Raw',
+        'detail.viewModeAria': 'View mode'
     },
     ru: {
         'topbar.settings': 'Настройки',
@@ -219,7 +225,13 @@ const WG_I18N = {
         'detail.expandTitle': 'Развернуть на весь экран',
         'detail.schemaValid': 'Схема: корректно',
         'detail.schemaInvalid': 'Схема: некорректно',
-        'detail.missingKey': '⚠ нет поля «{key}»'
+        'detail.missingKey': '⚠ нет поля «{key}»',
+        'detail.truncated': ' (обрезано)',
+        'detail.binaryHex': ' (двоичные данные — hex)',
+        'detail.sectionsAria': 'Разделы пакета',
+        'detail.formatted': 'Форматированный',
+        'detail.rawView': 'Исходный',
+        'detail.viewModeAria': 'Режим просмотра'
     }
 };
 
