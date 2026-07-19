@@ -229,6 +229,12 @@ class I18nE2EIT {
                     "() => { setActiveLanguage('ru'); return t('msg.traceInvalid'); }");
             assertThat((String) literalToken).contains("{value}");
 
+            Object oneSample = page.evaluate(
+                    "() => { setActiveLanguage('ru'); return t('status.finished', "
+                            + "{ samples: 1, errors: 1, sword: plural(1, ['сэмпл','сэмпла','сэмплов']), "
+                            + "eword: plural(1, ['ошибка','ошибки','ошибок']) }); }");
+            assertThat((String) oneSample).isEqualTo("завершено: 1 сэмпл, 1 ошибка");
+
             browser.close();
         }
     }

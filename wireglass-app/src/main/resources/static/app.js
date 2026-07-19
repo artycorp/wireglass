@@ -1491,7 +1491,7 @@ function renderSchemaRules() {
             + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
             + '<code>' + esc(rule.pattern) + '</code>'
             + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">' + esc(t('list.edit')) + '</button>'
-            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">Reset</button>' : '')
+            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">' + esc(t('facets.reset')) + '</button>' : '')
             + (isRemote
                 ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + esc(disabled ? t('list.enable') : t('list.disable')) + '</button>'
                 : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">' + esc(t('list.delete')) + '</button>')
@@ -1793,12 +1793,12 @@ el.schemaSave.addEventListener('click', () => {
             rerenderSelectedDetail();
         }
         state.editingSchemaRuleId = null;
-        el.schemaSave.textContent = 'Save';
+        el.schemaSave.textContent = t('settings.save');
         el.schemaCancelEdit.hidden = true;
-        setSchemaMessage('Updated', true);
+        setSchemaMessage(t('msg.updated'), true);
     } else {
         state.localSchemaRules.push(normalizeSchemaRule({ name, pattern, target, schema }, 'local'));
-        setSchemaMessage('Saved', true);
+        setSchemaMessage(t('msg.savedShort'), true);
         saveSchemaRules();
     }
     el.schemaName.value = '';
@@ -1844,7 +1844,7 @@ if (el.schemaRemoteLoad) {
         try {
             await loadSchemaRulesFromUrl(url);
             el.schemaRemoteUrl.value = '';
-            setSchemaRemoteMessage('Loaded', true);
+            setSchemaRemoteMessage(t('msg.loaded'), true);
         } catch (e) {
             setSchemaRemoteMessage(t('msg.loadFailed', { error: e.message }), false);
         }
@@ -1854,10 +1854,10 @@ if (el.schemaRemoteSources) {
     el.schemaRemoteSources.addEventListener('click', async (ev) => {
         const refresh = ev.target.closest('.schema-source-refresh');
         if (refresh) {
-            setSchemaRemoteMessage('Refreshing…', true);
+            setSchemaRemoteMessage(t('msg.refreshing'), true);
             try {
                 await loadSchemaRulesFromUrl(refresh.dataset.url);
-                setSchemaRemoteMessage('Refreshed', true);
+                setSchemaRemoteMessage(t('msg.refreshed'), true);
             } catch (e) {
                 setSchemaRemoteMessage(t('msg.refreshFailed', { error: e.message }), false);
             }
@@ -1904,12 +1904,12 @@ el.dashSave.addEventListener('click', () => {
         state.localDashboardLinks = state.localDashboardLinks.map(l =>
             l.id === id ? normalizeLink({ ...fields, id, source: 'local' }) : l);
         state.editingDashLinkId = null;
-        el.dashSave.textContent = 'Save';
+        el.dashSave.textContent = t('settings.save');
         el.dashCancelEdit.hidden = true;
-        setDashMessage('Updated', true);
+        setDashMessage(t('msg.updated'), true);
     } else {
         state.localDashboardLinks.push(normalizeLink(fields));
-        setDashMessage('Saved', true);
+        setDashMessage(t('msg.savedShort'), true);
     }
     el.dashName.value = '';
     el.dashUrl.value = '';
@@ -2147,7 +2147,10 @@ function pollStatus(id) {
         if (!r.ok) return;
         const s = await r.json();
         if (s.state === 'RUNNING') {
-            setStatus(t('status.runningSamples', { n: s.capturedSamples }), 'run', id);
+            setStatus(t('status.runningSamples', {
+                n: s.capturedSamples,
+                word: plural(s.capturedSamples, ['сэмпл', 'сэмпла', 'сэмплов'])
+            }), 'run', id);
             return;
         }
         clearInterval(handle);
@@ -2157,7 +2160,12 @@ function pollStatus(id) {
             await loadRecent();
         }
         el.stop.disabled = true;
-        if (s.state === 'FINISHED') setStatus(t('status.finished', { samples: s.capturedSamples, errors: s.errorSamples }), 'ok', id);
+        if (s.state === 'FINISHED') setStatus(t('status.finished', {
+            samples: s.capturedSamples,
+            errors: s.errorSamples,
+            sword: plural(s.capturedSamples, ['сэмпл', 'сэмпла', 'сэмплов']),
+            eword: plural(s.errorSamples, ['ошибка', 'ошибки', 'ошибок'])
+        }), 'ok', id);
         else if (s.state === 'FAILED') setStatus(t('status.failed'), 'err', id);
         else setStatus(s.state, 'muted', id);
     }, 1000);
