@@ -330,15 +330,15 @@ function setSchemaRemoteMessage(text, ok) {
 function renderUrlSchemaSources() {
     if (!el.schemaRemoteSources) return;
     if (!state.urlSchemaSources.length) {
-        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">No URL sources loaded.</div>';
+        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">' + esc(t('list.noSources')) + '</div>';
         return;
     }
     el.schemaRemoteSources.innerHTML = state.urlSchemaSources.map(s =>
         '<div class="schema-rule" data-url="' + esc(s.url) + '">'
         + '<code>' + esc(s.url) + '</code>'
-        + '<span class="validation-target">' + s.rules.length + ' rule(s)</span>'
-        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">Refresh</button>'
-        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">Remove</button>'
+        + '<span class="validation-target">' + esc(t('count.rules', { n: s.rules.length })) + '</span>'
+        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">' + esc(t('list.refresh')) + '</button>'
+        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">' + esc(t('list.remove')) + '</button>'
         + '</div>').join('');
 }
 
@@ -1212,7 +1212,7 @@ function renderDashboardList() {
     updateSettingsCounts();
     const rows = state.serverDashboardLinks.concat(state.localDashboardLinks);
     if (!rows.length) {
-        el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
+        el.dashList.innerHTML = '<div class="schema-empty">' + esc(t('list.noDashboards')) + '</div>';
         return;
     }
     el.dashList.innerHTML = rows.map(link => {
@@ -1229,9 +1229,9 @@ function renderDashboardList() {
             + '<strong>' + esc(link.name) + '</strong>'
             + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
             + (isServer
-                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
-                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">Edit</button>'
-                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>')
+                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + esc(disabled ? t('list.enable') : t('list.disable')) + '</button>'
+                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">' + esc(t('list.edit')) + '</button>'
+                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">' + esc(t('list.delete')) + '</button>')
             + '</div>';
     }).join('');
 }
@@ -1252,9 +1252,9 @@ function startEditDashboardLink(id) {
     el.dashMatch.value = link.match || '';
     updateDashboardSystemPreview();
     updateDashboardTemplatePreview();
-    el.dashSave.textContent = 'Update';
+    el.dashSave.textContent = t('list.update');
     el.dashCancelEdit.hidden = false;
-    setDashMessage('Editing "' + link.name + '"', true);
+    setDashMessage(t('msg.editing', { name: link.name }), true);
     renderDashboardList();
     el.dashName.focus();
 }
@@ -1265,7 +1265,7 @@ function cancelEditDashboardLink() {
     el.dashUrl.value = '';
     el.dashMatch.value = '';
     updateDashboardTemplatePreview();
-    el.dashSave.textContent = 'Save';
+    el.dashSave.textContent = t('settings.save');
     el.dashCancelEdit.hidden = true;
     setDashMessage('', true);
     renderDashboardList();
@@ -1335,14 +1335,14 @@ function renderTraceLinks() {
     if (!el.traceList) return;
     if (el.traceCount) el.traceCount.textContent = String(state.traceLinks.length);
     if (!state.traceLinks.length) {
-        el.traceList.innerHTML = '<div class="schema-empty">No trace links.</div>';
+        el.traceList.innerHTML = '<div class="schema-empty">' + esc(t('list.noTraceLinks')) + '</div>';
         return;
     }
-    el.traceList.innerHTML = state.traceLinks.map((t, i) =>
+    el.traceList.innerHTML = state.traceLinks.map((tl, i) =>
         '<div class="schema-rule" data-trace="' + i + '">'
-        + '<span class="validation-target">' + esc(t.header) + '</span>'
-        + '<code>' + esc(t.urlTemplate) + '</code>'
-        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">Delete</button>'
+        + '<span class="validation-target">' + esc(tl.header) + '</span>'
+        + '<code>' + esc(tl.urlTemplate) + '</code>'
+        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">' + esc(t('list.delete')) + '</button>'
         + '</div>').join('');
 }
 
@@ -1427,6 +1427,7 @@ function setLanguage(language, persist = true) {
         option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
     applyTranslations(document);
+    updateCount(el.tbody.querySelectorAll('tr.pkt').length);
 }
 
 function updateSettingsCounts() {
@@ -1472,7 +1473,7 @@ function renderSchemaRules() {
     updateSettingsCounts();
     const rows = allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules);
     if (!rows.length) {
-        el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
+        el.schemaList.innerHTML = '<div class="schema-empty">' + esc(t('list.noRules')) + '</div>';
         return;
     }
     el.schemaList.innerHTML = rows.map(rule => {
@@ -1489,11 +1490,11 @@ function renderSchemaRules() {
             + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
             + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
             + '<code>' + esc(rule.pattern) + '</code>'
-            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">Edit</button>'
+            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">' + esc(t('list.edit')) + '</button>'
             + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">Reset</button>' : '')
             + (isRemote
-                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
-                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>')
+                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + esc(disabled ? t('list.enable') : t('list.disable')) + '</button>'
+                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">' + esc(t('list.delete')) + '</button>')
             + '</div>';
     }).join('');
 }
@@ -1511,9 +1512,9 @@ function startEditSchemaRule(id) {
     el.schemaPattern.value = rule.pattern;
     el.schemaTarget.value = rule.target;
     el.schemaJson.value = JSON.stringify(rule.schema, null, 2);
-    el.schemaSave.textContent = 'Update';
+    el.schemaSave.textContent = t('list.update');
     el.schemaCancelEdit.hidden = false;
-    setSchemaMessage('Editing "' + (rule.name || rule.pattern) + '"', true);
+    setSchemaMessage(t('msg.editing', { name: rule.name || rule.pattern }), true);
     renderSchemaRules();
     el.schemaPattern.focus();
 }
@@ -1523,7 +1524,7 @@ function cancelEditSchemaRule() {
     el.schemaName.value = '';
     el.schemaPattern.value = '';
     el.schemaJson.value = '';
-    el.schemaSave.textContent = 'Save';
+    el.schemaSave.textContent = t('settings.save');
     el.schemaCancelEdit.hidden = true;
     setSchemaMessage('', true);
     renderSchemaRules();
@@ -1707,11 +1708,11 @@ el.demo.addEventListener('click', async () => {
 el.stop.addEventListener('click', async () => {
     if (!state.activeRunId) return;
     await fetch('/api/runs/' + state.activeRunId + '/stop', { method: 'POST' });
-    setStatus('stopping…', 'run', state.activeRunId);
+    setStatus(t('status.stopping'), 'run', state.activeRunId);
 });
 
 el.clear.addEventListener('click', async () => {
-    if (!window.confirm('Clear all captured packets?')) return;
+    if (!window.confirm(t('msg.confirmClear'))) return;
     state.packets = [];
     state.runs = [];
     state.seen = new Set();
@@ -1721,7 +1722,7 @@ el.clear.addEventListener('click', async () => {
     state.maxElapsed = 1;
     state.packetCache.clear();
     el.tbody.innerHTML = '';
-    el.count.textContent = '0 packets';
+    updateCount(0);
     renderRunList();
     renderDetail(null);
     closeDetail();
@@ -1810,7 +1811,7 @@ el.schemaList.addEventListener('click', (ev) => {
     const toggle = ev.target.closest('.schema-toggle-server');
     if (toggle) {
         toggleServerItem('schema', toggle.dataset.id);
-        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? t('msg.disabled') : t('msg.enabled'), true);
         return;
     }
     const resetBt = ev.target.closest('.schema-reset');
@@ -1830,7 +1831,7 @@ el.schemaList.addEventListener('click', (ev) => {
     if (!bt) return;
     if (state.editingSchemaRuleId === bt.dataset.id) cancelEditSchemaRule();
     state.localSchemaRules = state.localSchemaRules.filter(rule => rule.id !== bt.dataset.id);
-    setSchemaMessage('Deleted', true);
+    setSchemaMessage(t('msg.deleted'), true);
     saveSchemaRules();
 });
 
@@ -1839,13 +1840,13 @@ if (el.schemaRemoteLoad) {
         const url = el.schemaRemoteUrl.value.trim();
         if (!url) { setSchemaRemoteMessage('URL is required', false); return; }
         if (!/^https?:\/\//i.test(url)) { setSchemaRemoteMessage('URL must be http(s)', false); return; }
-        setSchemaRemoteMessage('Loading…', true);
+        setSchemaRemoteMessage(t('msg.loading'), true);
         try {
             await loadSchemaRulesFromUrl(url);
             el.schemaRemoteUrl.value = '';
             setSchemaRemoteMessage('Loaded', true);
         } catch (e) {
-            setSchemaRemoteMessage('Failed to load: ' + e.message, false);
+            setSchemaRemoteMessage(t('msg.loadFailed', { error: e.message }), false);
         }
     });
 }
@@ -1858,7 +1859,7 @@ if (el.schemaRemoteSources) {
                 await loadSchemaRulesFromUrl(refresh.dataset.url);
                 setSchemaRemoteMessage('Refreshed', true);
             } catch (e) {
-                setSchemaRemoteMessage('Failed to refresh: ' + e.message, false);
+                setSchemaRemoteMessage(t('msg.refreshFailed', { error: e.message }), false);
             }
             return;
         }
@@ -1866,7 +1867,7 @@ if (el.schemaRemoteSources) {
         if (remove) {
             state.urlSchemaSources = state.urlSchemaSources.filter(s => s.url !== remove.dataset.url);
             saveUrlSchemaSources();
-            setSchemaRemoteMessage('Removed', true);
+            setSchemaRemoteMessage(t('msg.removed'), true);
         }
     });
 }
@@ -1920,7 +1921,7 @@ el.dashList.addEventListener('click', (ev) => {
     const toggle = ev.target.closest('.dash-toggle-server');
     if (toggle) {
         toggleServerItem('dashboard', toggle.dataset.id);
-        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? t('msg.disabled') : t('msg.enabled'), true);
         return;
     }
     const editBt = ev.target.closest('.dash-edit');
@@ -1929,7 +1930,7 @@ el.dashList.addEventListener('click', (ev) => {
     if (!bt) return;
     if (state.editingDashLinkId === bt.dataset.id) cancelEditDashboardLink();
     state.localDashboardLinks = state.localDashboardLinks.filter(l => l.id !== bt.dataset.id);
-    setDashMessage('Deleted', true);
+    setDashMessage(t('msg.deleted'), true);
     saveDashboardLinks();
 });
 
@@ -1938,12 +1939,12 @@ if (el.traceSave) {
     el.traceSave.addEventListener('click', () => {
         const header = el.traceHeader.value.trim();
         const urlTemplate = el.traceUrl.value.trim();
-        if (!header || !urlTemplate) { el.traceMessage.textContent = 'Header and URL template are required.'; el.traceMessage.className = 'schema-message'; return; }
-        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = 'URL template must be http(s) and contain {value}.'; el.traceMessage.className = 'schema-message'; return; }
+        if (!header || !urlTemplate) { el.traceMessage.textContent = t('msg.traceRequired'); el.traceMessage.className = 'schema-message'; return; }
+        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = t('msg.traceInvalid'); el.traceMessage.className = 'schema-message'; return; }
         state.traceLinks.push({ header, urlTemplate });
         saveTraceLinks();
         el.traceHeader.value = ''; el.traceUrl.value = '';
-        el.traceMessage.textContent = 'Saved.'; el.traceMessage.className = 'schema-message ok';
+        el.traceMessage.textContent = t('msg.saved'); el.traceMessage.className = 'schema-message ok';
     });
 }
 if (el.traceList) {
@@ -2013,7 +2014,7 @@ function runBodySearch() {
     let query = raw;
     if (el.bmRegex.checked) {
         try { query = new RegExp(raw, 'gi'); el.bmSearch.classList.remove('invalid'); }
-        catch (e) { el.bmSearch.classList.add('invalid'); el.bmCount.textContent = 'bad regex'; return; }
+        catch (e) { el.bmSearch.classList.add('invalid'); el.bmCount.textContent = t('msg.badRegex'); return; }
     } else {
         el.bmSearch.classList.remove('invalid');
     }
@@ -2135,7 +2136,7 @@ async function afterStart(status) {
     await loadRuns();
     renderRunList();
     await loadRecent();
-    setStatus('running…', 'run', status.id);
+    setStatus(t('status.running'), 'run', status.id);
     el.stop.disabled = false;
     pollStatus(status.id);
 }
@@ -2146,7 +2147,7 @@ function pollStatus(id) {
         if (!r.ok) return;
         const s = await r.json();
         if (s.state === 'RUNNING') {
-            setStatus('running… ' + s.capturedSamples + ' samples', 'run', id);
+            setStatus(t('status.runningSamples', { n: s.capturedSamples }), 'run', id);
             return;
         }
         clearInterval(handle);
@@ -2156,8 +2157,8 @@ function pollStatus(id) {
             await loadRecent();
         }
         el.stop.disabled = true;
-        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok', id);
-        else if (s.state === 'FAILED') setStatus('failed', 'err', id);
+        if (s.state === 'FINISHED') setStatus(t('status.finished', { samples: s.capturedSamples, errors: s.errorSamples }), 'ok', id);
+        else if (s.state === 'FAILED') setStatus(t('status.failed'), 'err', id);
         else setStatus(s.state, 'muted', id);
     }, 1000);
 }
@@ -2200,7 +2201,7 @@ function refreshBodyEditor() {
 function validateBody() {
     const v = bodyValue().trim();
     if (!v) { el.bodyErr.textContent = ''; el.bodyErr.className = 'body-err'; return true; }
-    try { JSON.parse(v); el.bodyErr.textContent = '✓ valid JSON'; el.bodyErr.className = 'body-err ok'; return true; }
+    try { JSON.parse(v); el.bodyErr.textContent = t('msg.validJson'); el.bodyErr.className = 'body-err ok'; return true; }
     catch (e) { el.bodyErr.textContent = '✕ ' + e.message; el.bodyErr.className = 'body-err'; return false; }
 }
 el.bodyFormat.addEventListener('click', () => {
@@ -2298,7 +2299,7 @@ function afTag(text, onRemove) {
     const x = document.createElement('button');
     x.type = 'button';
     x.textContent = '✕';
-    x.setAttribute('aria-label', 'remove filter ' + text);
+    x.setAttribute('aria-label', t('msg.removeFilter', { tag: text }));
     x.addEventListener('click', onRemove);
     span.appendChild(x);
     return span;
@@ -2384,7 +2385,10 @@ function updateSortIndicators() {
 
 function updateCount(shown) {
     const total = visiblePackets().length;
-    el.count.textContent = (shown === total) ? total + ' packets' : shown + ' / ' + total + ' packets';
+    const word = plural(total, ['пакет', 'пакета', 'пакетов']);
+    el.count.textContent = (shown === total)
+        ? t('count.packets', { n: total, word: word })
+        : t('count.packetsFiltered', { shown: shown, total: total, word: word });
 }
 
 function removeEmptyRow() {
@@ -2396,9 +2400,9 @@ function showEmptyRow() {
     tr.className = 'empty-row';
     const td = document.createElement('td');
     td.colSpan = 8;
-    td.append('No packets match these filters — ');
+    td.append(t('list.noPackets'));
     const a = document.createElement('a');
-    a.textContent = 'Reset';
+    a.textContent = t('facets.reset');
     a.addEventListener('click', resetFilters);
     td.appendChild(a);
     tr.appendChild(td);

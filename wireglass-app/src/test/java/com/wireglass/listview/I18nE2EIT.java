@@ -203,4 +203,33 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void countersAndRunStatusUsePluralForms() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+            page.click("#settings-back");
+
+            assertThat(page.innerText("#packet-count")).isEqualTo("0 пакетов");
+            assertThat(page.innerText("#run-status")).isEqualTo("ожидание");
+
+            Object one = page.evaluate("() => { setActiveLanguage('ru'); return plural(1, ['пакет','пакета','пакетов']); }");
+            assertThat(one).isEqualTo("пакет");
+            Object twentyOne = page.evaluate("() => plural(21, ['пакет','пакета','пакетов'])");
+            assertThat(twentyOne).isEqualTo("пакет");
+
+            Object literalToken = page.evaluate(
+                    "() => { setActiveLanguage('ru'); return t('msg.traceInvalid'); }");
+            assertThat((String) literalToken).contains("{value}");
+
+            browser.close();
+        }
+    }
 }
