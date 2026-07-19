@@ -12,24 +12,24 @@
 <body>
 <header class="topbar">
     <div class="brand">wire<span>glass</span> ⌁</div>
-    <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel">
+    <button type="button" id="run-toggle" class="run-toggle" aria-expanded="false" aria-controls="run-panel" data-i18n="topbar.newRun">
         <span class="plus">+</span> New run <span class="caret">▾</span>
     </button>
-    <button type="button" id="settings-toggle" class="run-toggle settings-toggle" aria-expanded="false" aria-controls="settings-panel">
+    <button type="button" id="settings-toggle" class="run-toggle settings-toggle" aria-expanded="false" aria-controls="settings-panel" data-i18n="topbar.settings">
         Settings <span class="caret">▾</span>
     </button>
-    <div id="run-status" class="run-status">idle</div>
+    <div id="run-status" class="run-status" data-i18n="topbar.idle">idle</div>
     <div id="global-links" class="global-links"></div>
-    <button type="button" id="clear-btn" class="toolbar-clear danger" title="Clear captured packets">Clear</button>
+    <button type="button" id="clear-btn" class="toolbar-clear danger" data-i18n="topbar.clear" data-i18n-title="topbar.clearTitle" title="Clear captured packets">Clear</button>
 </header>
 
 <section id="run-panel" class="run-panel">
     <form id="run-form" class="run-form">
-        <label class="field f-grow">url
+        <label class="field f-grow" data-i18n="form.url">url
             <input id="f-url" name="url" type="text" placeholder="https://httpbin.org/get"
                    value="https://httpbin.org/get" required/>
         </label>
-        <label class="field">method
+        <label class="field" data-i18n="form.method">method
             <select id="f-method" name="method">
                 <option>GET</option>
                 <option>POST</option>
@@ -39,26 +39,26 @@
                 <option>HEAD</option>
             </select>
         </label>
-        <label class="field">threads
+        <label class="field" data-i18n="form.threads">threads
             <input id="f-threads" name="threads" type="number" min="1" max="100" value="2"/>
         </label>
-        <label class="field">iterations
+        <label class="field" data-i18n="form.iterations">iterations
             <input id="f-iterations" name="iterations" type="number" min="1" max="1000" value="3"/>
         </label>
-        <label class="field" id="f-contentType-field">content-type
+        <label class="field" id="f-contentType-field" data-i18n="form.contentType">content-type
             <input id="f-contentType" name="contentType" type="text" placeholder="application/json"/>
         </label>
         <div class="field f-grow" id="f-body-field" hidden>
-            <span class="field-head">body
-                <button type="button" id="f-body-format" class="mini" title="Pretty-print JSON">Format</button>
+            <span class="field-head" data-i18n="form.body">body
+                <button type="button" id="f-body-format" class="mini" data-i18n="form.format" data-i18n-title="form.formatTitle" title="Pretty-print JSON">Format</button>
                 <span id="f-body-err" class="body-err" role="status"></span>
             </span>
             <textarea id="f-body" name="body" placeholder='{"k":"v"}' rows="2"></textarea>
         </div>
         <div class="run-actions">
-            <button type="submit" class="primary">Run</button>
-            <button type="button" id="demo-btn">Demo</button>
-            <button type="button" id="stop-btn" class="danger" disabled>Stop</button>
+            <button type="submit" class="primary" data-i18n="form.run">Run</button>
+            <button type="button" id="demo-btn" data-i18n="form.demo">Demo</button>
+            <button type="button" id="stop-btn" class="danger" disabled data-i18n="form.stop">Stop</button>
         </div>
     </form>
 </section>
@@ -68,28 +68,28 @@
     <div class="pane listpane">
         <div class="pane-toolbar">
             <div class="runs-toolbar">
-                <button type="button" id="run-all" class="run-chip active">All runs</button>
+                <button type="button" id="run-all" class="run-chip active" data-i18n="facets.allRuns">All runs</button>
                 <div id="run-list" class="run-list"></div>
             </div>
             <div class="facets">
                 <div class="facet-group" role="group" aria-label="Type">
-                    <span class="facet-label">type</span>
-                    <button type="button" class="seg active" data-type="">all</button>
+                    <span class="facet-label" data-i18n="facets.type">type</span>
+                    <button type="button" class="seg active" data-type="" data-i18n="facets.all">all</button>
                     <button type="button" class="seg http" data-type="HTTP">HTTP</button>
                     <button type="button" class="seg ws" data-type="WEBSOCKET">WS</button>
                     <button type="button" class="seg tcp" data-type="TCP">TCP</button>
                 </div>
                 <div class="facet-group" role="group" aria-label="Status">
-                    <span class="facet-label">status</span>
+                    <span class="facet-label" data-i18n="facets.status">status</span>
                     <button type="button" class="chip s2" data-status="2" aria-pressed="false">2xx</button>
                     <button type="button" class="chip s3" data-status="3" aria-pressed="false">3xx</button>
                     <button type="button" class="chip s4" data-status="4" aria-pressed="false">4xx</button>
                     <button type="button" class="chip s5" data-status="5" aria-pressed="false">5xx</button>
-                    <button type="button" class="chip failed" id="chip-failed" aria-pressed="false">⚠ failed</button>
+                    <button type="button" class="chip failed" id="chip-failed" aria-pressed="false" data-i18n="facets.failed">⚠ failed</button>
                 </div>
-                <label class="facet-inline">method
+                <label class="facet-inline" data-i18n="facets.method">method
                     <select id="filter-method">
-                        <option value="">any</option>
+                        <option value="" data-i18n="facets.any">any</option>
                         <option>GET</option>
                         <option>POST</option>
                         <option>PUT</option>
@@ -99,21 +99,21 @@
                         <option>WS</option>
                     </select>
                 </label>
-                <label class="facet-inline">latency ≥
+                <label class="facet-inline" data-i18n="facets.latencyAtLeast">latency ≥
                     <input id="filter-latency" type="number" min="0" step="50" placeholder="0"/> ms
                 </label>
                 <div class="search-wrap">
-                    <input id="filter-text" type="text" placeholder="search url / label..."/>
-                    <label class="chk" title="also search request/response bodies">
+                    <input id="filter-text" type="text" data-i18n-placeholder="facets.searchPlaceholder" placeholder="search url / label..."/>
+                    <label class="chk" data-i18n="facets.bodies" data-i18n-title="facets.bodiesTitle" title="also search request/response bodies">
                         <input id="filter-bodies" type="checkbox"/> bodies
                     </label>
                 </div>
                 <span id="packet-count" class="count">0 packets</span>
             </div>
             <div class="active-filters" id="active-filters" hidden>
-                <span class="af-label">active:</span>
+                <span class="af-label" data-i18n="facets.active">active:</span>
                 <span id="active-tags"></span>
-                <button type="button" id="reset-filters" class="reset">Reset</button>
+                <button type="button" id="reset-filters" class="reset" data-i18n="facets.reset">Reset</button>
             </div>
         </div>
         <div class="table-wrap">
@@ -132,14 +132,14 @@
                 <thead>
                 <tr>
                     <th class="c-idx">#</th>
-                    <th class="c-valid" title="Schema validation"></th>
-                    <th class="c-time sortable" data-sort="time" aria-sort="none">time</th>
-                    <th class="c-type sortable" data-sort="type" aria-sort="none">type</th>
-                    <th class="c-method sortable" data-sort="method" aria-sort="none">method</th>
-                    <th class="c-url sortable" data-sort="url" aria-sort="none">url / label</th>
-                    <th class="c-status sortable" data-sort="status" aria-sort="none">status</th>
-                    <th class="c-latency sortable" data-sort="latency" aria-sort="none">latency</th>
-                    <th class="c-size sortable" data-sort="size" aria-sort="none">resp kB</th>
+                    <th class="c-valid" data-i18n-title="table.validationTitle" title="Schema validation"></th>
+                    <th class="c-time sortable" data-sort="time" aria-sort="none" data-i18n="table.time">time</th>
+                    <th class="c-type sortable" data-sort="type" aria-sort="none" data-i18n="table.type">type</th>
+                    <th class="c-method sortable" data-sort="method" aria-sort="none" data-i18n="table.method">method</th>
+                    <th class="c-url sortable" data-sort="url" aria-sort="none" data-i18n="table.url">url / label</th>
+                    <th class="c-status sortable" data-sort="status" aria-sort="none" data-i18n="table.status">status</th>
+                    <th class="c-latency sortable" data-sort="latency" aria-sort="none" data-i18n="table.latency">latency</th>
+                    <th class="c-size sortable" data-sort="size" aria-sort="none" data-i18n="table.size">resp kB</th>
                 </tr>
                 </thead>
                 <tbody id="packet-body"></tbody>
@@ -148,12 +148,12 @@
     </div>
 
     <aside class="pane detailpane" id="detail-pane" aria-label="Packet detail">
-        <button type="button" id="detail-close" class="detail-close" title="Close (Esc)" aria-label="Close detail">×</button>
+        <button type="button" id="detail-close" class="detail-close" data-i18n-title="detail.closeTitle" title="Close (Esc)" aria-label="Close detail">×</button>
         <div id="detail-content">
-            <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
+            <div class="empty"><span data-i18n="detail.emptyTitle">Pick a packet</span><strong data-i18n="detail.emptyBody">Request and response details will appear here.</strong><em data-i18n="detail.emptyHint">Use ↑/↓ or j/k to move through captured traffic.</em></div>
         </div>
     </aside>
-    <button type="button" id="detail-restore" class="detail-restore" title="Show inspector" aria-label="Show inspector" hidden>
+    <button type="button" id="detail-restore" class="detail-restore" data-i18n-title="detail.showInspector" data-i18n-aria-label="detail.showInspector" title="Show inspector" aria-label="Show inspector" hidden>
         <span aria-hidden="true">‹</span>
     </button>
 </section>
@@ -162,47 +162,47 @@
 <section id="settings-view" class="settings-view app-view" hidden>
     <div class="settings-page">
         <div class="settings-head">
-            <button type="button" id="settings-back" class="settings-back">← Back to traffic</button>
+            <button type="button" id="settings-back" class="settings-back" data-i18n="settings.back">← Back to traffic</button>
             <div>
-                <h1>Settings</h1>
-                <p>Manage validation rules, dashboard links, and interface preferences.</p>
+                <h1 data-i18n="settings.title">Settings</h1>
+                <p data-i18n="settings.subtitle">Manage validation rules, dashboard links, and interface preferences.</p>
             </div>
         </div>
         <div class="settings-panel" id="settings-panel">
             <div class="settings-tabs" role="tablist" aria-label="Settings sections">
                 <button type="button" class="settings-tab active" id="settings-tab-schema"
                         role="tab" aria-selected="true" aria-controls="schema-panel"
-                        data-settings-tab="schema">JSON Schema <span id="schema-count">0</span></button>
+                        data-settings-tab="schema" data-i18n="settings.tab.schema">JSON Schema <span id="schema-count">0</span></button>
                 <button type="button" class="settings-tab" id="settings-tab-dashboards"
                         role="tab" aria-selected="false" aria-controls="dashboard-panel"
-                        data-settings-tab="dashboards">Dashboards <span id="dashboard-count">0</span></button>
+                        data-settings-tab="dashboards" data-i18n="settings.tab.dashboards">Dashboards <span id="dashboard-count">0</span></button>
                 <button type="button" class="settings-tab" id="settings-tab-trace"
                         role="tab" aria-selected="false" aria-controls="trace-panel"
-                        data-settings-tab="trace">Trace links <span id="trace-count">0</span></button>
+                        data-settings-tab="trace" data-i18n="settings.tab.trace">Trace links <span id="trace-count">0</span></button>
                 <button type="button" class="settings-tab" id="settings-tab-language"
                         role="tab" aria-selected="false" aria-controls="language-panel"
-                        data-settings-tab="language">Language</button>
+                        data-settings-tab="language" data-i18n="settings.tab.language">Language</button>
             </div>
             <div class="schema-panel settings-pane" id="schema-panel" role="tabpanel" aria-labelledby="settings-tab-schema">
                 <div class="settings-form">
-                    <label class="schema-field col-4">Name (optional)
-                        <input id="schema-name" type="text" placeholder="User response shape"/>
+                    <label class="schema-field col-4" data-i18n="settings.schema.name">Name (optional)
+                        <input id="schema-name" type="text" data-i18n-placeholder="settings.schema.namePlaceholder" placeholder="User response shape"/>
                     </label>
-                    <label class="schema-field pattern col-4">URL pattern
+                    <label class="schema-field pattern col-4" data-i18n="settings.schema.pattern">URL pattern
                         <input id="schema-pattern" type="text" placeholder="/api/users/{id}"/>
                     </label>
-                    <label class="schema-field target col-4">Target
+                    <label class="schema-field target col-4" data-i18n="settings.schema.target">Target
                         <select id="schema-target">
                             <option value="response">response</option>
                             <option value="request">request</option>
                         </select>
                     </label>
-                    <label class="schema-field schema col-12">JSON Schema
+                    <label class="schema-field schema col-12" data-i18n="settings.schema.json">JSON Schema
                         <textarea id="schema-json" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea>
                     </label>
                     <div class="schema-actions">
-                        <button type="button" id="schema-save" class="primary">Save</button>
-                        <button type="button" id="schema-cancel-edit" class="ghost" hidden>Cancel</button>
+                        <button type="button" id="schema-save" class="primary" data-i18n="settings.save">Save</button>
+                        <button type="button" id="schema-cancel-edit" class="ghost" hidden data-i18n="settings.cancel">Cancel</button>
                         <span id="schema-message" class="schema-message" role="status"></span>
                     </div>
                 </div>
@@ -210,10 +210,10 @@
                 <div class="settings-section">
                     <div class="settings-form">
                         <div class="field-row col-12">
-                            <label class="schema-field pattern">Load rules from URL
+                            <label class="schema-field pattern" data-i18n="settings.schema.remoteUrl">Load rules from URL
                                 <input id="schema-remote-url" type="text" placeholder="https://example.com/wireglass-rules.json"/>
                             </label>
-                            <button type="button" id="schema-remote-load" class="field-action">Load</button>
+                            <button type="button" id="schema-remote-load" class="field-action" data-i18n="settings.schema.load">Load</button>
                         </div>
                         <span id="schema-remote-message" class="schema-message col-12" role="status"></span>
                     </div>
@@ -222,10 +222,10 @@
             </div>
             <div class="schema-panel settings-pane" id="dashboard-panel" role="tabpanel" aria-labelledby="settings-tab-dashboards" hidden>
                 <div class="settings-form">
-                    <label class="schema-field col-3">Name
-                        <input id="dash-name" type="text" placeholder="Open in Grafana"/>
+                    <label class="schema-field col-3" data-i18n="settings.dash.name">Name
+                        <input id="dash-name" type="text" data-i18n-placeholder="settings.dash.namePlaceholder" placeholder="Open in Grafana"/>
                     </label>
-                    <label class="schema-field col-3">System
+                    <label class="schema-field col-3" data-i18n="settings.dash.system">System
                         <span class="system-select">
                             <img id="dash-system-icon" class="system-icon" src="icons/grafana.svg" alt="Grafana" loading="lazy"/>
                             <select id="dash-system">
@@ -236,13 +236,13 @@
                             </select>
                         </span>
                     </label>
-                    <label class="schema-field col-3">Scope
+                    <label class="schema-field col-3" data-i18n="settings.dash.scope">Scope
                         <select id="dash-scope">
                             <option value="packet">packet</option>
                             <option value="global">global</option>
                         </select>
                     </label>
-                    <label class="schema-field col-3">Insert preset
+                    <label class="schema-field col-3" data-i18n="settings.dash.preset">Insert preset
                         <select id="dash-preset">
                             <option value="">—</option>
                             <option value="grafana">Grafana</option>
@@ -250,19 +250,19 @@
                             <option value="signalfx">SignalFx</option>
                         </select>
                     </label>
-                    <label class="schema-field pattern col-12">URL template
+                    <label class="schema-field pattern col-12" data-i18n="settings.dash.urlTemplate">URL template
                         <input id="dash-url" type="text" placeholder="https://grafana/d/UID?var-host={host}&amp;from={fromMs}&amp;to={toMs}"/>
                         <span id="dash-url-preview" class="template-preview" aria-live="polite"></span>
                     </label>
-                    <label class="schema-field col-8">Match (packet, optional)
+                    <label class="schema-field col-8" data-i18n="settings.dash.match">Match (packet, optional)
                         <input id="dash-match" type="text" placeholder="api.example.com"/>
                     </label>
-                    <label class="schema-field col-4">Window ± min
+                    <label class="schema-field col-4" data-i18n="settings.dash.window">Window ± min
                         <input id="dash-window" type="number" min="1" max="1440" value="5"/>
                     </label>
                     <div class="schema-actions">
-                        <button type="button" id="dash-save" class="primary">Save</button>
-                        <button type="button" id="dash-cancel-edit" class="ghost" hidden>Cancel</button>
+                        <button type="button" id="dash-save" class="primary" data-i18n="settings.save">Save</button>
+                        <button type="button" id="dash-cancel-edit" class="ghost" hidden data-i18n="settings.cancel">Cancel</button>
                         <span id="dash-message" class="schema-message" role="status"></span>
                     </div>
                 </div>
@@ -270,14 +270,14 @@
             </div>
             <div class="schema-panel settings-pane" id="trace-panel" role="tabpanel" aria-labelledby="settings-tab-trace" hidden>
                 <div class="settings-form">
-                    <label class="schema-field col-4">Header
+                    <label class="schema-field col-4" data-i18n="settings.trace.header">Header
                         <input id="trace-header" type="text" placeholder="x-b3-traceid"/>
                     </label>
-                    <label class="schema-field pattern col-8">URL template
+                    <label class="schema-field pattern col-8" data-i18n="settings.trace.urlTemplate">URL template
                         <input id="trace-url" type="text" placeholder="https://app.signalfx.com/#/apm/traces/{value}"/>
                     </label>
                     <div class="schema-actions">
-                        <button type="button" id="trace-save" class="primary">Save</button>
+                        <button type="button" id="trace-save" class="primary" data-i18n="settings.save">Save</button>
                         <span id="trace-message" class="schema-message" role="status"></span>
                     </div>
                 </div>
@@ -285,7 +285,7 @@
             </div>
             <div class="schema-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
                 <div class="settings-form">
-                    <div class="schema-field col-4">Interface language
+                    <div class="schema-field col-4" data-i18n="settings.language.label">Interface language
                         <div class="language-options" role="group" aria-label="Interface language">
                             <button type="button" class="seg language-option active" data-language="en" aria-pressed="true">English</button>
                             <button type="button" class="seg language-option" data-language="ru" aria-pressed="false">Русский</button>
@@ -318,13 +318,14 @@
             <span id="bm-size" class="body-size"></span>
             <span id="bm-toggle" class="body-toggle" role="group" aria-label="View mode"></span>
             <div id="bm-search-wrap" class="bm-search-wrap">
-                <input id="bm-search" type="text" placeholder="find in body…" aria-label="Find in body"/>
-                <label class="chk" title="Treat the query as a regular expression"><input id="bm-regex" type="checkbox"/> regex</label>
+                <input id="bm-search" type="text" data-i18n-placeholder="modal.searchPlaceholder" placeholder="find in body…"
+                       data-i18n-aria-label="modal.searchAria" aria-label="Find in body"/>
+                <label class="chk" data-i18n-title="modal.regexTitle" title="Treat the query as a regular expression"><input id="bm-regex" type="checkbox"/> regex</label>
                 <span id="bm-count" class="bm-count"></span>
-                <button type="button" id="bm-prev" class="mini" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button>
-                <button type="button" id="bm-next" class="mini" title="Next match (Enter)" aria-label="Next match">↓</button>
+                <button type="button" id="bm-prev" class="mini" data-i18n-title="modal.prevTitle" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button>
+                <button type="button" id="bm-next" class="mini" data-i18n-title="modal.nextTitle" title="Next match (Enter)" aria-label="Next match">↓</button>
             </div>
-            <button type="button" id="bm-close" class="mini" title="Close (Esc)" aria-label="Close">✕</button>
+            <button type="button" id="bm-close" class="mini" data-i18n-title="modal.closeTitle" title="Close (Esc)" aria-label="Close">✕</button>
         </div>
         <div id="bm-host" class="bm-host"></div>
     </div>
@@ -334,6 +335,7 @@
 <script src="vendor/codemirror/addon/search/searchcursor.min.js"></script>
 <script src="vendor/codemirror/mode/javascript/javascript.min.js"></script>
 <script src="vendor/codemirror/mode/xml/xml.min.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

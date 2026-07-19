@@ -136,6 +136,31 @@ in the web app that calls `packetBus.publish(packet)`. `CapturedPacket` is seria
   is `el.tbody` — NOT `el.body`
   (that name collided with the request-body textarea, shadowed it, and sent empty POST bodies; a
   real bug). When adding a form field, pick a unique `el.<name>`.
+- i18n lives in `static/i18n.js` (loaded before `app.js`): `t(key, params)`, `plural(n, forms)`,
+  `applyTranslations(root)`, `setActiveLanguage(lang)`. Static text is marked with `data-i18n`
+  (and `data-i18n-placeholder` / `-title` / `-aria-label` for attributes).
+  **`applyTranslations` replaces an element's first NON-WHITESPACE TEXT NODE, not its
+  `textContent`** — nearly every label here is a text node adjacent to an element child
+  (`<label>url <input/></label>`, `<button>JSON Schema <span id="schema-count">0</span></button>`),
+  and `textContent` would delete the nested control. Whitespace-only nodes are skipped so indented
+  markup works, and the node's surrounding spaces are preserved so inline labels keep their gap
+  from the control. A label whose text sits after its children (the `bodies` checkbox) or between
+  them (the `New run` button) needs no wrapper. If the element has no non-whitespace text node at
+  all, one is INSERTED as its first child — so tagging an empty element with `data-i18n` silently
+  gives it text rather than failing; that branch is deliberate but untested.
+  Text rendered by JS into `innerHTML` must be `esc()`d even when it comes from the dictionary
+  (`schemaBadgeLabel`, `dashboardBadgeLabel`, `sectionHeaders`) — the translated string is still
+  interpolated markup. `bodyBlock` is the exception: its title arrives as HTML from
+  `reqTitle`/`respTitle`.
+  Text that is a DATA VALUE carries no `data-i18n`: `HTTP`/`WS`/`TCP` (bound to `data-type`), HTTP
+  methods, `2xx`–`5xx`, and the `response`/`request` options in the schema pane — that last one is
+  persisted into saved rules and asserted by the e2e suite.
+  English stays the default when nothing is stored, which is what keeps the existing ITs green.
+  Switching language does NOT reload: `setLanguage` calls `retranslateRenderedContent()`, which
+  re-runs every render entry point (`rebuildList`, `rerenderSelectedDetail`, the settings renders)
+  so already-drawn content follows the switch while filters, the packet list, and the selected
+  packet survive. Add a new render function to that list when you add one, or its output will keep
+  the old language until something else repaints it.
 - Packets reach the UI two ways and are deduped by id in `state.seen`: live via SSE, and backfilled
   on page load via `GET /api/packets` (so a test that ran before the page was opened still shows up).
 - h3 section titles are uppercased by CSS — assert case-insensitively in tests.

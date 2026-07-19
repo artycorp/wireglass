@@ -330,15 +330,15 @@ function setSchemaRemoteMessage(text, ok) {
 function renderUrlSchemaSources() {
     if (!el.schemaRemoteSources) return;
     if (!state.urlSchemaSources.length) {
-        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">No URL sources loaded.</div>';
+        el.schemaRemoteSources.innerHTML = '<div class="schema-empty">' + esc(t('list.noSources')) + '</div>';
         return;
     }
     el.schemaRemoteSources.innerHTML = state.urlSchemaSources.map(s =>
         '<div class="schema-rule" data-url="' + esc(s.url) + '">'
         + '<code>' + esc(s.url) + '</code>'
-        + '<span class="validation-target">' + s.rules.length + ' rule(s)</span>'
-        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">Refresh</button>'
-        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">Remove</button>'
+        + '<span class="validation-target">' + esc(t('count.rules', { n: s.rules.length })) + '</span>'
+        + '<button type="button" class="mini schema-source-refresh" data-url="' + esc(s.url) + '">' + esc(t('list.refresh')) + '</button>'
+        + '<button type="button" class="mini schema-source-remove" data-url="' + esc(s.url) + '">' + esc(t('list.remove')) + '</button>'
         + '</div>').join('');
 }
 
@@ -495,7 +495,7 @@ function appendRow(packet) {
         const shield = document.createElement('span');
         shield.className = 'valid-shield ' + (invalid ? 'invalid' : 'valid');
         shield.textContent = invalid ? '✗' : '✓';
-        shield.title = invalid ? 'Schema: invalid' : 'Schema: valid';
+        shield.title = invalid ? t('detail.schemaInvalid') : t('detail.schemaValid');
         row.querySelector('.c-valid').appendChild(shield);
     }
     const timeCell = row.querySelector('.c-time');
@@ -521,6 +521,7 @@ function appendRow(packet) {
     const size = packet.responseBody ? packet.responseBody.length : 0;
     row.querySelector('.c-size').textContent = (size / 1024).toFixed(2);
     if (!packet.success) row.classList.add('err');
+    if (packet.id === state.selectedId) row.classList.add('selected');
     row.addEventListener('click', () => selectPacket(packet.id, row));
     el.tbody.appendChild(row);
 }
@@ -625,7 +626,12 @@ function restoreDetail() {
 
 function renderDetail(packet) {
     detailBodies = [];
-    if (!packet) { teardownDetailScrollSpy(); el.detail.innerHTML = '<div class="empty"><span>Pick a packet</span><strong>Request and response details will appear here.</strong><em>Use ↑/↓ or j/k to move through captured traffic.</em></div>'; return; }
+    if (!packet) {
+        teardownDetailScrollSpy();
+        el.detail.innerHTML = '<div class="empty"><span>' + esc(t('detail.emptyTitle')) + '</span><strong>'
+            + esc(t('detail.emptyBody')) + '</strong><em>' + esc(t('detail.emptyHint')) + '</em></div>';
+        return;
+    }
     const validation = validatePacket(packet);
     const statusBadge = packet.success
         ? '<span class="badge ok">' + esc(packet.status || 'OK') + '</span>'
@@ -636,34 +642,38 @@ function renderDetail(packet) {
         + '<div class="detail-hero">'
         + '<div class="detail-kicker"><span class="method-chip">' + esc(packet.method) + '</span>' + statusBadge + '<span>' + esc(packet.type) + '</span></div>'
         + '<h2>' + title + '</h2>'
-        + '<div class="meta">' + esc(packet.threadName) + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">body truncated</span>' : '') + '</div>'
+        + '<div class="meta">' + esc(packet.threadName)
+        + (packet.bodyTruncated ? ' &middot; <span style="color:var(--warn)">' + esc(t('detail.bodyTruncated')) + '</span>' : '')
+        + '</div>'
         + '</div>'
         + '<div class="detail-metrics">'
-        + detailMetric('elapsed', packet.elapsedMs, 'ms')
-        + detailMetric('connect', packet.connectMs, 'ms')
-        + detailMetric('latency', packet.latencyMs, 'ms')
-        + detailMetric('response', packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
+        + detailMetric(t('detail.metric.elapsed'), packet.elapsedMs, 'ms')
+        + detailMetric(t('detail.metric.connect'), packet.connectMs, 'ms')
+        + detailMetric(t('detail.metric.latency'), packet.latencyMs, 'ms')
+        + detailMetric(t('detail.metric.response'), packet.responseBody ? humanSize(packet.responseBody.length) : '0 B', '')
         + '</div>'
-        + '<div class="detail-tabs" role="navigation" aria-label="Packet sections">'
-        + '<button type="button" class="detail-tab active" data-jump="overview">Overview</button>'
-        + '<button type="button" class="detail-tab" data-jump="headers">Headers</button>'
-        + '<button type="button" class="detail-tab" data-jump="bodies">Bodies</button>'
-        + '<button type="button" class="detail-tab" data-jump="raw">Raw</button>'
+        + '<div class="detail-tabs" role="navigation" aria-label="' + esc(t('detail.sectionsAria')) + '">'
+        + '<button type="button" class="detail-tab active" data-jump="overview">' + esc(t('detail.tab.overview')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="headers">' + esc(t('detail.tab.headers')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="bodies">' + esc(t('detail.tab.bodies')) + '</button>'
+        + '<button type="button" class="detail-tab" data-jump="raw">' + esc(t('detail.tab.raw')) + '</button>'
         + '</div>'
-        + '<section class="detail-section" id="detail-overview"><h3>Overview</h3>'
+        + '<section class="detail-section" id="detail-overview"><h3>' + esc(t('detail.overview')) + '</h3>'
         + '<div class="overview-grid">'
-        + overviewPill('Method', 'c-method ' + methodClass(packet.method), 'method-pill', packet.method)
-        + overviewPill('Status', 'c-status ' + statusClass(packet.status), 'status-pill', packet.status || (packet.success ? 'OK' : 'ERR'))
-        + overviewPill('Type', 'c-type ' + typeClass(packet.type), 'type-pill', packet.type)
-        + overviewPill('Thread', 'thread-value', '', packet.threadName || '-')
+        + overviewPill(t('detail.pill.method'), 'c-method ' + methodClass(packet.method), 'method-pill', packet.method)
+        + overviewPill(t('detail.pill.status'), 'c-status ' + statusClass(packet.status), 'status-pill', packet.status || (packet.success ? 'OK' : 'ERR'))
+        + overviewPill(t('detail.pill.type'), 'c-type ' + typeClass(packet.type), 'type-pill', packet.type)
+        + overviewPill(t('detail.pill.thread'), 'thread-value', '', packet.threadName || '-')
         + '</div></section>'
         + validationSection(validation)
         + dashboardSectionPlaceholder()
-        + '<section class="detail-section" id="detail-headers">' + sectionHeaders('Request headers', packet.requestHeaders, 'outgoing')
-        + sectionHeaders('Response headers', packet.responseHeaders, 'incoming') + '</section>'
+        + '<section class="detail-section" id="detail-headers">' + sectionHeaders(t('detail.requestHeaders'), packet.requestHeaders, 'outgoing')
+        + sectionHeaders(t('detail.responseHeaders'), packet.responseHeaders, 'incoming') + '</section>'
         + '<section class="detail-section" id="detail-bodies">' + bodyBlock(packet.id, reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
         + bodyBlock(packet.id, respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
-        + (packet.failureMessage ? '<section class="detail-section" id="detail-raw"><h3>Failure</h3><pre>' + esc(packet.failureMessage) + '</pre></section>' : '<section class="detail-section" id="detail-raw"><h3>Raw</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
+        + (packet.failureMessage
+            ? '<section class="detail-section" id="detail-raw"><h3>' + esc(t('detail.failure')) + '</h3><pre>' + esc(packet.failureMessage) + '</pre></section>'
+            : '<section class="detail-section" id="detail-raw"><h3>' + esc(t('detail.raw')) + '</h3><pre>' + esc(JSON.stringify(packet, null, 2)) + '</pre></section>')
         + '</div>';
     mountDetailBodies();
     mountDashboardLinks(packet);
@@ -671,7 +681,7 @@ function renderDetail(packet) {
 }
 
 function detailMetric(label, value, suffix) {
-    return '<div class="metric"><span>' + label + '</span><strong>' + esc(value == null ? '-' : value) + '</strong><em>' + suffix + '</em></div>';
+    return '<div class="metric"><span>' + esc(label) + '</span><strong>' + esc(value == null ? '-' : value) + '</strong><em>' + suffix + '</em></div>';
 }
 
 function overviewPill(label, valueClass, pillClass, value) {
@@ -683,25 +693,25 @@ function overviewPill(label, valueClass, pillClass, value) {
 
 function validationSection(validation) {
     if (!validation.results.length) {
-        return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>'
-            + '<div class="validation-empty">No matching schema rules.</div></section>';
+        return '<section class="detail-section validation-section" id="detail-validation"><h3>' + esc(t('detail.validation')) + '</h3>'
+            + '<div class="validation-empty">' + esc(t('detail.validationEmpty')) + '</div></section>';
     }
     const rules = validation.results.map(result => {
         const errors = result.errors.length
             ? '<ul>' + result.errors.map(e => '<li><code>' + esc(e.path) + '</code> ' + esc(e.message) + '</li>').join('') + '</ul>'
-            : '<div class="validation-ok">Body matches schema.</div>';
+            : '<div class="validation-ok">' + esc(t('detail.validationOk')) + '</div>';
         return '<div class="validation-rule ' + (result.errors.length ? 'invalid' : 'valid') + '">'
             + '<div class="validation-head"><span class="validation-target">' + esc(result.target) + '</span>'
             + '<code>' + esc(result.pattern) + '</code>'
-            + '<strong>' + (result.errors.length ? 'invalid' : 'valid') + '</strong></div>'
+            + '<strong>' + esc(result.errors.length ? t('detail.invalid') : t('detail.valid')) + '</strong></div>'
             + errors
             + '</div>';
     }).join('');
-    return '<section class="detail-section validation-section" id="detail-validation"><h3>Validation</h3>' + rules + '</section>';
+    return '<section class="detail-section validation-section" id="detail-validation"><h3>' + esc(t('detail.validation')) + '</h3>' + rules + '</section>';
 }
 
 function dashboardSectionPlaceholder() {
-    return '<section class="detail-section" id="detail-dashboards"><h3>Dashboards</h3>'
+    return '<section class="detail-section" id="detail-dashboards"><h3>' + esc(t('detail.dashboards')) + '</h3>'
         + '<div id="detail-dashboards-list" class="dash-list"></div></section>';
 }
 
@@ -752,7 +762,7 @@ function sectionHeaders(title, headers, direction) {
     }
     const kind = direction === 'incoming' ? 'incoming' : 'outgoing';
     const label = kind === 'incoming' ? 'incoming' : 'outgoing';
-    return '<div class="headers-card ' + kind + '"><h3>' + title
+    return '<div class="headers-card ' + kind + '"><h3>' + esc(title)
         + '<span class="headers-direction">' + label + '</span></h3>'
         + '<table class="kv headers-table">' + rows + '</table></div>';
 }
@@ -766,28 +776,28 @@ const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of 
 function bodyBlock(packetId, title, body, binary, truncated, target, validationErrors, validationState) {
     if (body == null || body === '') return '';
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
-        + (truncated ? ' (truncated)' : '');
+        + (truncated ? esc(t('detail.truncated')) : '');
     let code = body;
     let mode = null;
     if (!binary) {
         const lang = detectLangCached(packetId, target, body);
         if (lang) { code = lang.code; mode = lang.mode; }
     } else {
-        note += ' (binary — hex preview)';
+        note += esc(t('detail.binaryHex'));
     }
     const i = detailBodies.push({ title: stripTags(title), body, code, mode, size: body.length, raw: false, target, validationErrors: validationErrors || [], validationState: validationState || null }) - 1;
     // The raw/formatted toggle only makes sense when there is a formatted form (highlighted mode).
     const toggle = mode ? viewToggleHtml(i) : '';
     const expand = ' <button type="button" class="body-expand" data-body="' + i
-        + '" title="Expand to full screen" aria-label="Expand">⤢</button>';
+        + '" title="' + esc(t('detail.expandTitle')) + '" aria-label="' + esc(t('detail.expandTitle')) + '">⤢</button>';
     return '<div class="body-block" data-body="' + i + '"><h3>' + title + note + toggle + expand + '</h3>'
         + '<div class="cm-host" id="body-view-' + i + '"></div></div>';
 }
 
 function viewToggleHtml(i) {
-    return ' <span class="body-toggle" role="group" aria-label="View mode">'
-        + '<button type="button" class="bt active" data-body="' + i + '" data-raw="0">Formatted</button>'
-        + '<button type="button" class="bt" data-body="' + i + '" data-raw="1">Raw</button>'
+    return ' <span class="body-toggle" role="group" aria-label="' + esc(t('detail.viewModeAria')) + '">'
+        + '<button type="button" class="bt active" data-body="' + i + '" data-raw="0">' + esc(t('detail.formatted')) + '</button>'
+        + '<button type="button" class="bt" data-body="' + i + '" data-raw="1">' + esc(t('detail.rawView')) + '</button>'
         + '</span>';
 }
 
@@ -902,7 +912,7 @@ function markMissingField(cm, code, error) {
     const line = parentPos ? parentPos.from.line : 0;
     const marker = document.createElement('span');
     marker.className = 'cm-schema-missing';
-    marker.textContent = '⚠ missing "' + key + '"';
+    marker.textContent = t('detail.missingKey', { key: key });
     marker.title = error.message;
     cm.addLineWidget(line, marker, { coverGutter: false, noHScroll: true });
 }
@@ -986,13 +996,13 @@ function mountDetailScrollSpy() {
 // field on CapturedPacket — a backend change — so this is the honest view from current data.)
 function reqTitle(p) {
     return p.type === 'WEBSOCKET'
-        ? '<span class="ws-dir up">↑</span>Sent frame'
-        : 'Request body';
+        ? '<span class="ws-dir up">↑</span>' + esc(t('detail.sentFrame'))
+        : esc(t('detail.requestBody'));
 }
 function respTitle(p) {
     return p.type === 'WEBSOCKET'
-        ? '<span class="ws-dir down">↓</span>Received frame'
-        : 'Response body';
+        ? '<span class="ws-dir down">↓</span>' + esc(t('detail.receivedFrame'))
+        : esc(t('detail.responseBody'));
 }
 
 function esc(s) {
@@ -1195,7 +1205,7 @@ function refreshDashboardViews() {
 }
 
 function dashboardBadgeLabel(link) {
-    return link.origin === 'local' ? 'local file' : 'server';
+    return link.origin === 'local' ? t('badge.localFile') : t('badge.server');
 }
 
 function renderDashboardList() {
@@ -1203,7 +1213,7 @@ function renderDashboardList() {
     updateSettingsCounts();
     const rows = state.serverDashboardLinks.concat(state.localDashboardLinks);
     if (!rows.length) {
-        el.dashList.innerHTML = '<div class="schema-empty">No dashboard links.</div>';
+        el.dashList.innerHTML = '<div class="schema-empty">' + esc(t('list.noDashboards')) + '</div>';
         return;
     }
     el.dashList.innerHTML = rows.map(link => {
@@ -1216,13 +1226,13 @@ function renderDashboardList() {
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(link.id) + '">'
             + dashboardSystemIconHtml(link.system)
             + '<span class="validation-target">' + esc(link.scope) + '</span>'
-            + (isServer ? '<span class="validation-target">' + dashboardBadgeLabel(link) + '</span>' : '')
+            + (isServer ? '<span class="validation-target">' + esc(dashboardBadgeLabel(link)) + '</span>' : '')
             + '<strong>' + esc(link.name) + '</strong>'
             + '<code class="template-code">' + renderTemplatePreview(link.urlTemplate) + '</code>'
             + (isServer
-                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
-                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">Edit</button>'
-                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">Delete</button>')
+                ? '<button type="button" class="mini dash-toggle-server" data-id="' + esc(link.id) + '">' + esc(disabled ? t('list.enable') : t('list.disable')) + '</button>'
+                : '<button type="button" class="mini dash-edit" data-id="' + esc(link.id) + '">' + esc(t('list.edit')) + '</button>'
+                    + '<button type="button" class="mini dash-delete" data-id="' + esc(link.id) + '">' + esc(t('list.delete')) + '</button>')
             + '</div>';
     }).join('');
 }
@@ -1243,9 +1253,9 @@ function startEditDashboardLink(id) {
     el.dashMatch.value = link.match || '';
     updateDashboardSystemPreview();
     updateDashboardTemplatePreview();
-    el.dashSave.textContent = 'Update';
+    el.dashSave.textContent = t('list.update');
     el.dashCancelEdit.hidden = false;
-    setDashMessage('Editing "' + link.name + '"', true);
+    setDashMessage(t('msg.editing', { name: link.name }), true);
     renderDashboardList();
     el.dashName.focus();
 }
@@ -1256,7 +1266,7 @@ function cancelEditDashboardLink() {
     el.dashUrl.value = '';
     el.dashMatch.value = '';
     updateDashboardTemplatePreview();
-    el.dashSave.textContent = 'Save';
+    el.dashSave.textContent = t('settings.save');
     el.dashCancelEdit.hidden = true;
     setDashMessage('', true);
     renderDashboardList();
@@ -1296,7 +1306,7 @@ function mountDashboardLinks(packet) {
     if (!host || !packet) return;
     host.innerHTML = '';
     const links = packetDashboardLinks(packet);
-    if (!links.length) { host.innerHTML = '<div class="dash-empty">No dashboard links.</div>'; return; }
+    if (!links.length) { host.innerHTML = '<div class="dash-empty">' + esc(t('detail.noDashboards')) + '</div>'; return; }
     links.forEach(l => { const a = dashboardAnchor(l, packet); if (a) host.appendChild(a); });
 }
 
@@ -1326,14 +1336,14 @@ function renderTraceLinks() {
     if (!el.traceList) return;
     if (el.traceCount) el.traceCount.textContent = String(state.traceLinks.length);
     if (!state.traceLinks.length) {
-        el.traceList.innerHTML = '<div class="schema-empty">No trace links.</div>';
+        el.traceList.innerHTML = '<div class="schema-empty">' + esc(t('list.noTraceLinks')) + '</div>';
         return;
     }
-    el.traceList.innerHTML = state.traceLinks.map((t, i) =>
+    el.traceList.innerHTML = state.traceLinks.map((tl, i) =>
         '<div class="schema-rule" data-trace="' + i + '">'
-        + '<span class="validation-target">' + esc(t.header) + '</span>'
-        + '<code>' + esc(t.urlTemplate) + '</code>'
-        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">Delete</button>'
+        + '<span class="validation-target">' + esc(tl.header) + '</span>'
+        + '<code>' + esc(tl.urlTemplate) + '</code>'
+        + '<button type="button" class="mini trace-delete" data-trace="' + i + '">' + esc(t('list.delete')) + '</button>'
         + '</div>').join('');
 }
 
@@ -1410,11 +1420,27 @@ function loadLanguage() {
 function setLanguage(language, persist = true) {
     const selectedLanguage = language === 'ru' ? 'ru' : 'en';
     if (persist) localStorage.setItem(LANGUAGE_KEY, selectedLanguage);
+    setActiveLanguage(selectedLanguage);
+    document.documentElement.lang = selectedLanguage;
     el.languageOptions.forEach(option => {
         const selected = option.dataset.language === selectedLanguage;
         option.classList.toggle('active', selected);
         option.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
+    applyTranslations(document);
+    retranslateRenderedContent();
+}
+
+function retranslateRenderedContent() {
+    renderRunList();
+    renderSchemaRules();
+    renderDashboardList();
+    renderTraceLinks();
+    renderGlobalLinks();
+    renderActiveFilters();
+    updateSortIndicators();
+    rebuildList();
+    rerenderSelectedDetail();
 }
 
 function updateSettingsCounts() {
@@ -1450,8 +1476,8 @@ function saveSchemaRules() {
 }
 
 function schemaBadgeLabel(rule) {
-    if (rule.origin === 'local') return 'local file';
-    return rule.source === 'url' ? 'url' : 'server';
+    if (rule.origin === 'local') return t('badge.localFile');
+    return rule.source === 'url' ? t('badge.url') : t('badge.server');
 }
 
 function renderSchemaRules() {
@@ -1460,7 +1486,7 @@ function renderSchemaRules() {
     updateSettingsCounts();
     const rows = allRemoteSchemaRules().map(effectiveSchemaRule).concat(state.localSchemaRules);
     if (!rows.length) {
-        el.schemaList.innerHTML = '<div class="schema-empty">No schema rules.</div>';
+        el.schemaList.innerHTML = '<div class="schema-empty">' + esc(t('list.noRules')) + '</div>';
         return;
     }
     el.schemaList.innerHTML = rows.map(rule => {
@@ -1473,15 +1499,15 @@ function renderSchemaRules() {
         if (rule.id === state.editingSchemaRuleId) classes.push('editing');
         return '<div class="' + classes.join(' ') + '" data-id="' + esc(rule.id) + '">'
             + '<span class="validation-target">' + esc(rule.target) + '</span>'
-            + (isRemote ? '<span class="validation-target">' + schemaBadgeLabel(rule) + '</span>' : '')
-            + (rule.overridden ? '<span class="validation-target">edited</span>' : '')
+            + (isRemote ? '<span class="validation-target">' + esc(schemaBadgeLabel(rule)) + '</span>' : '')
+            + (rule.overridden ? '<span class="validation-target">' + esc(t('badge.edited')) + '</span>' : '')
             + (rule.name ? '<strong>' + esc(rule.name) + '</strong>' : '')
             + '<code>' + esc(rule.pattern) + '</code>'
-            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">Edit</button>'
-            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">Reset</button>' : '')
+            + '<button type="button" class="mini schema-edit" data-id="' + esc(rule.id) + '">' + esc(t('list.edit')) + '</button>'
+            + (rule.overridden ? '<button type="button" class="mini schema-reset" data-id="' + esc(rule.id) + '">' + esc(t('facets.reset')) + '</button>' : '')
             + (isRemote
-                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + (disabled ? 'Enable' : 'Disable') + '</button>'
-                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">Delete</button>')
+                ? '<button type="button" class="mini schema-toggle-server" data-id="' + esc(rule.id) + '">' + esc(disabled ? t('list.enable') : t('list.disable')) + '</button>'
+                : '<button type="button" class="mini schema-delete" data-id="' + esc(rule.id) + '">' + esc(t('list.delete')) + '</button>')
             + '</div>';
     }).join('');
 }
@@ -1499,9 +1525,9 @@ function startEditSchemaRule(id) {
     el.schemaPattern.value = rule.pattern;
     el.schemaTarget.value = rule.target;
     el.schemaJson.value = JSON.stringify(rule.schema, null, 2);
-    el.schemaSave.textContent = 'Update';
+    el.schemaSave.textContent = t('list.update');
     el.schemaCancelEdit.hidden = false;
-    setSchemaMessage('Editing "' + (rule.name || rule.pattern) + '"', true);
+    setSchemaMessage(t('msg.editing', { name: rule.name || rule.pattern }), true);
     renderSchemaRules();
     el.schemaPattern.focus();
 }
@@ -1511,7 +1537,7 @@ function cancelEditSchemaRule() {
     el.schemaName.value = '';
     el.schemaPattern.value = '';
     el.schemaJson.value = '';
-    el.schemaSave.textContent = 'Save';
+    el.schemaSave.textContent = t('settings.save');
     el.schemaCancelEdit.hidden = true;
     setSchemaMessage('', true);
     renderSchemaRules();
@@ -1695,11 +1721,11 @@ el.demo.addEventListener('click', async () => {
 el.stop.addEventListener('click', async () => {
     if (!state.activeRunId) return;
     await fetch('/api/runs/' + state.activeRunId + '/stop', { method: 'POST' });
-    setStatus('stopping…', 'run', state.activeRunId);
+    setStatus(t('status.stopping'), 'run', state.activeRunId);
 });
 
 el.clear.addEventListener('click', async () => {
-    if (!window.confirm('Clear all captured packets?')) return;
+    if (!window.confirm(t('msg.confirmClear'))) return;
     state.packets = [];
     state.runs = [];
     state.seen = new Set();
@@ -1709,7 +1735,7 @@ el.clear.addEventListener('click', async () => {
     state.maxElapsed = 1;
     state.packetCache.clear();
     el.tbody.innerHTML = '';
-    el.count.textContent = '0 packets';
+    updateCount(0);
     renderRunList();
     renderDetail(null);
     closeDetail();
@@ -1750,16 +1776,16 @@ el.languageOptions.forEach(option => {
 
 el.schemaSave.addEventListener('click', () => {
     const pattern = el.schemaPattern.value.trim();
-    if (!pattern) { setSchemaMessage('URL pattern is required', false); return; }
+    if (!pattern) { setSchemaMessage(t('msg.patternRequired'), false); return; }
     let schema;
     try {
         schema = JSON.parse(el.schemaJson.value);
     } catch (e) {
-        setSchemaMessage('Schema JSON: ' + e.message, false);
+        setSchemaMessage(t('msg.schemaJsonError', { error: e.message }), false);
         return;
     }
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-        setSchemaMessage('Schema must be a JSON object', false);
+        setSchemaMessage(t('msg.schemaNotObject'), false);
         return;
     }
     const name = el.schemaName.value.trim();
@@ -1780,12 +1806,12 @@ el.schemaSave.addEventListener('click', () => {
             rerenderSelectedDetail();
         }
         state.editingSchemaRuleId = null;
-        el.schemaSave.textContent = 'Save';
+        el.schemaSave.textContent = t('settings.save');
         el.schemaCancelEdit.hidden = true;
-        setSchemaMessage('Updated', true);
+        setSchemaMessage(t('msg.updated'), true);
     } else {
         state.localSchemaRules.push(normalizeSchemaRule({ name, pattern, target, schema }, 'local'));
-        setSchemaMessage('Saved', true);
+        setSchemaMessage(t('msg.savedShort'), true);
         saveSchemaRules();
     }
     el.schemaName.value = '';
@@ -1798,7 +1824,7 @@ el.schemaList.addEventListener('click', (ev) => {
     const toggle = ev.target.closest('.schema-toggle-server');
     if (toggle) {
         toggleServerItem('schema', toggle.dataset.id);
-        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        setSchemaMessage(isServerItemDisabled('schema', toggle.dataset.id) ? t('msg.disabled') : t('msg.enabled'), true);
         return;
     }
     const resetBt = ev.target.closest('.schema-reset');
@@ -1809,7 +1835,7 @@ el.schemaList.addEventListener('click', (ev) => {
         computeEffectiveSchemaRules();
         renderSchemaRules();
         rerenderSelectedDetail();
-        setSchemaMessage('Reset to server version', true);
+        setSchemaMessage(t('msg.resetToServer'), true);
         return;
     }
     const editBt = ev.target.closest('.schema-edit');
@@ -1818,7 +1844,7 @@ el.schemaList.addEventListener('click', (ev) => {
     if (!bt) return;
     if (state.editingSchemaRuleId === bt.dataset.id) cancelEditSchemaRule();
     state.localSchemaRules = state.localSchemaRules.filter(rule => rule.id !== bt.dataset.id);
-    setSchemaMessage('Deleted', true);
+    setSchemaMessage(t('msg.deleted'), true);
     saveSchemaRules();
 });
 
@@ -1827,13 +1853,13 @@ if (el.schemaRemoteLoad) {
         const url = el.schemaRemoteUrl.value.trim();
         if (!url) { setSchemaRemoteMessage('URL is required', false); return; }
         if (!/^https?:\/\//i.test(url)) { setSchemaRemoteMessage('URL must be http(s)', false); return; }
-        setSchemaRemoteMessage('Loading…', true);
+        setSchemaRemoteMessage(t('msg.loading'), true);
         try {
             await loadSchemaRulesFromUrl(url);
             el.schemaRemoteUrl.value = '';
-            setSchemaRemoteMessage('Loaded', true);
+            setSchemaRemoteMessage(t('msg.loaded'), true);
         } catch (e) {
-            setSchemaRemoteMessage('Failed to load: ' + e.message, false);
+            setSchemaRemoteMessage(t('msg.loadFailed', { error: e.message }), false);
         }
     });
 }
@@ -1841,12 +1867,12 @@ if (el.schemaRemoteSources) {
     el.schemaRemoteSources.addEventListener('click', async (ev) => {
         const refresh = ev.target.closest('.schema-source-refresh');
         if (refresh) {
-            setSchemaRemoteMessage('Refreshing…', true);
+            setSchemaRemoteMessage(t('msg.refreshing'), true);
             try {
                 await loadSchemaRulesFromUrl(refresh.dataset.url);
-                setSchemaRemoteMessage('Refreshed', true);
+                setSchemaRemoteMessage(t('msg.refreshed'), true);
             } catch (e) {
-                setSchemaRemoteMessage('Failed to refresh: ' + e.message, false);
+                setSchemaRemoteMessage(t('msg.refreshFailed', { error: e.message }), false);
             }
             return;
         }
@@ -1854,7 +1880,7 @@ if (el.schemaRemoteSources) {
         if (remove) {
             state.urlSchemaSources = state.urlSchemaSources.filter(s => s.url !== remove.dataset.url);
             saveUrlSchemaSources();
-            setSchemaRemoteMessage('Removed', true);
+            setSchemaRemoteMessage(t('msg.removed'), true);
         }
     });
 }
@@ -1880,8 +1906,8 @@ el.dashWindow.addEventListener('change', () => {
 el.dashSave.addEventListener('click', () => {
     const name = el.dashName.value.trim();
     const urlTemplate = el.dashUrl.value.trim();
-    if (!name) { setDashMessage('Name is required', false); return; }
-    if (!urlTemplate) { setDashMessage('URL template is required', false); return; }
+    if (!name) { setDashMessage(t('msg.nameRequired'), false); return; }
+    if (!urlTemplate) { setDashMessage(t('msg.urlTemplateRequired'), false); return; }
     const fields = {
         name, system: el.dashSystem.value, scope: el.dashScope.value,
         urlTemplate, match: el.dashMatch.value.trim(),
@@ -1891,12 +1917,12 @@ el.dashSave.addEventListener('click', () => {
         state.localDashboardLinks = state.localDashboardLinks.map(l =>
             l.id === id ? normalizeLink({ ...fields, id, source: 'local' }) : l);
         state.editingDashLinkId = null;
-        el.dashSave.textContent = 'Save';
+        el.dashSave.textContent = t('settings.save');
         el.dashCancelEdit.hidden = true;
-        setDashMessage('Updated', true);
+        setDashMessage(t('msg.updated'), true);
     } else {
         state.localDashboardLinks.push(normalizeLink(fields));
-        setDashMessage('Saved', true);
+        setDashMessage(t('msg.savedShort'), true);
     }
     el.dashName.value = '';
     el.dashUrl.value = '';
@@ -1908,7 +1934,7 @@ el.dashList.addEventListener('click', (ev) => {
     const toggle = ev.target.closest('.dash-toggle-server');
     if (toggle) {
         toggleServerItem('dashboard', toggle.dataset.id);
-        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? 'Disabled' : 'Enabled', true);
+        setDashMessage(isServerItemDisabled('dashboard', toggle.dataset.id) ? t('msg.disabled') : t('msg.enabled'), true);
         return;
     }
     const editBt = ev.target.closest('.dash-edit');
@@ -1917,7 +1943,7 @@ el.dashList.addEventListener('click', (ev) => {
     if (!bt) return;
     if (state.editingDashLinkId === bt.dataset.id) cancelEditDashboardLink();
     state.localDashboardLinks = state.localDashboardLinks.filter(l => l.id !== bt.dataset.id);
-    setDashMessage('Deleted', true);
+    setDashMessage(t('msg.deleted'), true);
     saveDashboardLinks();
 });
 
@@ -1926,12 +1952,12 @@ if (el.traceSave) {
     el.traceSave.addEventListener('click', () => {
         const header = el.traceHeader.value.trim();
         const urlTemplate = el.traceUrl.value.trim();
-        if (!header || !urlTemplate) { el.traceMessage.textContent = 'Header and URL template are required.'; el.traceMessage.className = 'schema-message'; return; }
-        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = 'URL template must be http(s) and contain {value}.'; el.traceMessage.className = 'schema-message'; return; }
+        if (!header || !urlTemplate) { el.traceMessage.textContent = t('msg.traceRequired'); el.traceMessage.className = 'schema-message'; return; }
+        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = t('msg.traceInvalid'); el.traceMessage.className = 'schema-message'; return; }
         state.traceLinks.push({ header, urlTemplate });
         saveTraceLinks();
         el.traceHeader.value = ''; el.traceUrl.value = '';
-        el.traceMessage.textContent = 'Saved.'; el.traceMessage.className = 'schema-message ok';
+        el.traceMessage.textContent = t('msg.saved'); el.traceMessage.className = 'schema-message ok';
     });
 }
 if (el.traceList) {
@@ -2001,7 +2027,7 @@ function runBodySearch() {
     let query = raw;
     if (el.bmRegex.checked) {
         try { query = new RegExp(raw, 'gi'); el.bmSearch.classList.remove('invalid'); }
-        catch (e) { el.bmSearch.classList.add('invalid'); el.bmCount.textContent = 'bad regex'; return; }
+        catch (e) { el.bmSearch.classList.add('invalid'); el.bmCount.textContent = t('msg.badRegex'); return; }
     } else {
         el.bmSearch.classList.remove('invalid');
     }
@@ -2123,7 +2149,7 @@ async function afterStart(status) {
     await loadRuns();
     renderRunList();
     await loadRecent();
-    setStatus('running…', 'run', status.id);
+    setStatus(t('status.running'), 'run', status.id);
     el.stop.disabled = false;
     pollStatus(status.id);
 }
@@ -2134,7 +2160,10 @@ function pollStatus(id) {
         if (!r.ok) return;
         const s = await r.json();
         if (s.state === 'RUNNING') {
-            setStatus('running… ' + s.capturedSamples + ' samples', 'run', id);
+            setStatus(t('status.runningSamples', {
+                n: s.capturedSamples,
+                word: plural(s.capturedSamples, ['сэмпл', 'сэмпла', 'сэмплов'])
+            }), 'run', id);
             return;
         }
         clearInterval(handle);
@@ -2144,8 +2173,13 @@ function pollStatus(id) {
             await loadRecent();
         }
         el.stop.disabled = true;
-        if (s.state === 'FINISHED') setStatus('finished: ' + s.capturedSamples + ' samples, ' + s.errorSamples + ' errors', 'ok', id);
-        else if (s.state === 'FAILED') setStatus('failed', 'err', id);
+        if (s.state === 'FINISHED') setStatus(t('status.finished', {
+            samples: s.capturedSamples,
+            errors: s.errorSamples,
+            sword: plural(s.capturedSamples, ['сэмпл', 'сэмпла', 'сэмплов']),
+            eword: plural(s.errorSamples, ['ошибка', 'ошибки', 'ошибок'])
+        }), 'ok', id);
+        else if (s.state === 'FAILED') setStatus(t('status.failed'), 'err', id);
         else setStatus(s.state, 'muted', id);
     }, 1000);
 }
@@ -2188,7 +2222,7 @@ function refreshBodyEditor() {
 function validateBody() {
     const v = bodyValue().trim();
     if (!v) { el.bodyErr.textContent = ''; el.bodyErr.className = 'body-err'; return true; }
-    try { JSON.parse(v); el.bodyErr.textContent = '✓ valid JSON'; el.bodyErr.className = 'body-err ok'; return true; }
+    try { JSON.parse(v); el.bodyErr.textContent = t('msg.validJson'); el.bodyErr.className = 'body-err ok'; return true; }
     catch (e) { el.bodyErr.textContent = '✕ ' + e.message; el.bodyErr.className = 'body-err'; return false; }
 }
 el.bodyFormat.addEventListener('click', () => {
@@ -2286,7 +2320,7 @@ function afTag(text, onRemove) {
     const x = document.createElement('button');
     x.type = 'button';
     x.textContent = '✕';
-    x.setAttribute('aria-label', 'remove filter ' + text);
+    x.setAttribute('aria-label', t('msg.removeFilter', { tag: text }));
     x.addEventListener('click', onRemove);
     span.appendChild(x);
     return span;
@@ -2372,7 +2406,10 @@ function updateSortIndicators() {
 
 function updateCount(shown) {
     const total = visiblePackets().length;
-    el.count.textContent = (shown === total) ? total + ' packets' : shown + ' / ' + total + ' packets';
+    const word = plural(total, ['пакет', 'пакета', 'пакетов']);
+    el.count.textContent = (shown === total)
+        ? t('count.packets', { n: total, word: word })
+        : t('count.packetsFiltered', { shown: shown, total: total, word: word });
 }
 
 function removeEmptyRow() {
@@ -2384,9 +2421,9 @@ function showEmptyRow() {
     tr.className = 'empty-row';
     const td = document.createElement('td');
     td.colSpan = 8;
-    td.append('No packets match these filters — ');
+    td.append(t('list.noPackets'));
     const a = document.createElement('a');
-    a.textContent = 'Reset';
+    a.textContent = t('facets.reset');
     a.addEventListener('click', resetFilters);
     td.appendChild(a);
     tr.appendChild(td);
