@@ -129,4 +129,30 @@ class I18nE2EIT {
             browser.close();
         }
     }
+
+    @Test
+    void filterToolbarAndTableHeadersAreTranslated() {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium()
+                    .launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.navigate(baseUrl());
+
+            page.click("#settings-toggle");
+            page.click("#settings-tab-language");
+            page.click(".language-option[data-language='ru']");
+            page.click("#settings-back");
+
+            assertThat(page.innerText("#run-all")).isEqualTo("Все прогоны");
+            String headers = page.innerText("#packet-table thead");
+            assertThat(headers).containsIgnoringCase("время").containsIgnoringCase("тип")
+                    .containsIgnoringCase("метод").containsIgnoringCase("статус");
+
+            String facets = page.innerText(".facets");
+            assertThat(facets).contains("все").contains("любой");
+            assertThat(facets).contains("HTTP").contains("WS").contains("TCP").contains("2xx");
+
+            browser.close();
+        }
+    }
 }

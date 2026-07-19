@@ -68,28 +68,28 @@
     <div class="pane listpane">
         <div class="pane-toolbar">
             <div class="runs-toolbar">
-                <button type="button" id="run-all" class="run-chip active">All runs</button>
+                <button type="button" id="run-all" class="run-chip active" data-i18n="facets.allRuns">All runs</button>
                 <div id="run-list" class="run-list"></div>
             </div>
             <div class="facets">
                 <div class="facet-group" role="group" aria-label="Type">
-                    <span class="facet-label">type</span>
-                    <button type="button" class="seg active" data-type="">all</button>
+                    <span class="facet-label" data-i18n="facets.type">type</span>
+                    <button type="button" class="seg active" data-type="" data-i18n="facets.all">all</button>
                     <button type="button" class="seg http" data-type="HTTP">HTTP</button>
                     <button type="button" class="seg ws" data-type="WEBSOCKET">WS</button>
                     <button type="button" class="seg tcp" data-type="TCP">TCP</button>
                 </div>
                 <div class="facet-group" role="group" aria-label="Status">
-                    <span class="facet-label">status</span>
+                    <span class="facet-label" data-i18n="facets.status">status</span>
                     <button type="button" class="chip s2" data-status="2" aria-pressed="false">2xx</button>
                     <button type="button" class="chip s3" data-status="3" aria-pressed="false">3xx</button>
                     <button type="button" class="chip s4" data-status="4" aria-pressed="false">4xx</button>
                     <button type="button" class="chip s5" data-status="5" aria-pressed="false">5xx</button>
-                    <button type="button" class="chip failed" id="chip-failed" aria-pressed="false">⚠ failed</button>
+                    <button type="button" class="chip failed" id="chip-failed" aria-pressed="false" data-i18n="facets.failed">⚠ failed</button>
                 </div>
-                <label class="facet-inline">method
+                <label class="facet-inline" data-i18n="facets.method">method
                     <select id="filter-method">
-                        <option value="">any</option>
+                        <option value="" data-i18n="facets.any">any</option>
                         <option>GET</option>
                         <option>POST</option>
                         <option>PUT</option>
@@ -99,21 +99,21 @@
                         <option>WS</option>
                     </select>
                 </label>
-                <label class="facet-inline">latency ≥
+                <label class="facet-inline" data-i18n="facets.latencyAtLeast">latency ≥
                     <input id="filter-latency" type="number" min="0" step="50" placeholder="0"/> ms
                 </label>
                 <div class="search-wrap">
-                    <input id="filter-text" type="text" placeholder="search url / label..."/>
-                    <label class="chk" title="also search request/response bodies">
+                    <input id="filter-text" type="text" data-i18n-placeholder="facets.searchPlaceholder" placeholder="search url / label..."/>
+                    <label class="chk" data-i18n="facets.bodies" data-i18n-title="facets.bodiesTitle" title="also search request/response bodies">
                         <input id="filter-bodies" type="checkbox"/> bodies
                     </label>
                 </div>
                 <span id="packet-count" class="count">0 packets</span>
             </div>
             <div class="active-filters" id="active-filters" hidden>
-                <span class="af-label">active:</span>
+                <span class="af-label" data-i18n="facets.active">active:</span>
                 <span id="active-tags"></span>
-                <button type="button" id="reset-filters" class="reset">Reset</button>
+                <button type="button" id="reset-filters" class="reset" data-i18n="facets.reset">Reset</button>
             </div>
         </div>
         <div class="table-wrap">
@@ -132,14 +132,14 @@
                 <thead>
                 <tr>
                     <th class="c-idx">#</th>
-                    <th class="c-valid" title="Schema validation"></th>
-                    <th class="c-time sortable" data-sort="time" aria-sort="none">time</th>
-                    <th class="c-type sortable" data-sort="type" aria-sort="none">type</th>
-                    <th class="c-method sortable" data-sort="method" aria-sort="none">method</th>
-                    <th class="c-url sortable" data-sort="url" aria-sort="none">url / label</th>
-                    <th class="c-status sortable" data-sort="status" aria-sort="none">status</th>
-                    <th class="c-latency sortable" data-sort="latency" aria-sort="none">latency</th>
-                    <th class="c-size sortable" data-sort="size" aria-sort="none">resp kB</th>
+                    <th class="c-valid" data-i18n-title="table.validationTitle" title="Schema validation"></th>
+                    <th class="c-time sortable" data-sort="time" aria-sort="none" data-i18n="table.time">time</th>
+                    <th class="c-type sortable" data-sort="type" aria-sort="none" data-i18n="table.type">type</th>
+                    <th class="c-method sortable" data-sort="method" aria-sort="none" data-i18n="table.method">method</th>
+                    <th class="c-url sortable" data-sort="url" aria-sort="none" data-i18n="table.url">url / label</th>
+                    <th class="c-status sortable" data-sort="status" aria-sort="none" data-i18n="table.status">status</th>
+                    <th class="c-latency sortable" data-sort="latency" aria-sort="none" data-i18n="table.latency">latency</th>
+                    <th class="c-size sortable" data-sort="size" aria-sort="none" data-i18n="table.size">resp kB</th>
                 </tr>
                 </thead>
                 <tbody id="packet-body"></tbody>
@@ -148,7 +148,7 @@
     </div>
 
     <aside class="pane detailpane" id="detail-pane" aria-label="Packet detail">
-        <button type="button" id="detail-close" class="detail-close" title="Close (Esc)" aria-label="Close detail">×</button>
+        <button type="button" id="detail-close" class="detail-close" data-i18n-title="detail.closeTitle" title="Close (Esc)" aria-label="Close detail">×</button>
         <div id="detail-content">
             <div class="empty">Select a packet to inspect request &amp; response bodies.</div>
         </div>
