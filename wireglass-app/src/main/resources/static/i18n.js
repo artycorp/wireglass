@@ -30,6 +30,7 @@ function t(key, params) {
 }
 
 function plural(n, forms) {
+    if (activeLanguage() !== 'ru') return Math.abs(n) === 1 ? forms[0] : forms[1];
     const abs = Math.abs(n) % 100;
     const tail = abs % 10;
     if (abs > 10 && abs < 20) return forms[2];

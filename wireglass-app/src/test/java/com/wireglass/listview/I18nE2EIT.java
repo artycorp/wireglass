@@ -63,12 +63,20 @@ class I18nE2EIT {
             assertThat(interpolated).isEqualTo("7 packets");
 
             Object pluralFew = page.evaluate(
-                    "() => plural(3, ['пакет', 'пакета', 'пакетов'])");
+                    "() => { setActiveLanguage('ru'); return plural(3, ['пакет', 'пакета', 'пакетов']); }");
             assertThat(pluralFew).isEqualTo("пакета");
 
             Object pluralMany = page.evaluate(
-                    "() => plural(11, ['пакет', 'пакета', 'пакетов'])");
+                    "() => { setActiveLanguage('ru'); return plural(11, ['пакет', 'пакета', 'пакетов']); }");
             assertThat(pluralMany).isEqualTo("пакетов");
+
+            Object pluralOne = page.evaluate(
+                    "() => { setActiveLanguage('ru'); return plural(21, ['пакет', 'пакета', 'пакетов']); }");
+            assertThat(pluralOne).isEqualTo("пакет");
+
+            Object pluralEnglish = page.evaluate(
+                    "() => { setActiveLanguage('en'); return plural(21, ['file', 'files', 'files']); }");
+            assertThat(pluralEnglish).isEqualTo("files");
 
             browser.close();
         }
