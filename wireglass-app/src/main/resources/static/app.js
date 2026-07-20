@@ -787,7 +787,14 @@ let detailSpy = null;   // IntersectionObserver that syncs nav tabs to scroll po
 const DETAIL_VIEWER_MAX = '55vh';  // tall bodies scroll inside this instead of growing the drawer
 
 function bodyBlock(packetId, title, body, binary, truncated, target, validationErrors, validationState) {
-    if (body == null || body === '') return '';
+    // An absent section is indistinguishable from an uncaptured one, so an empty body still gets
+    // its labelled section — just with a placeholder instead of a viewer, and no toggle/expand
+    // controls (there is nothing to reformat or enlarge).
+    if (body == null || body === '') {
+        return '<div class="body-block body-block-empty"><h3>' + title
+            + '<span class="body-size">0 B</span></h3>'
+            + '<div class="body-empty">' + esc(t('detail.emptyBody')) + '</div></div>';
+    }
     let note = '<span class="body-size">' + humanSize(body.length) + '</span>'
         + (truncated ? esc(t('detail.truncated')) : '');
     let code = body;

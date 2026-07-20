@@ -1240,6 +1240,59 @@ class TrafficInspectorE2EIT {
         }
     }
 
+    // Both body sections are always present, so the pane never looks like a packet "has no
+    // response" when it merely has an empty one. An omitted section is indistinguishable from
+    // a missing capture, which is what made this read as "the response body disappeared".
+    @Test
+    void bothBodySectionsAreAlwaysRendered() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            // both bodies present -> two viewers with their own content
+            renderPacketWithBodies(page, "both", "{\"req\":1}", "{\"resp\":2}");
+            assertThat(bodyBlockCount(page)).isEqualTo(2);
+            String both = page.innerText("#detail-bodies");
+            assertThat(both).containsIgnoringCase("Request body").containsIgnoringCase("Response body");
+            assertThat(both).contains("req").contains("resp");
+
+            // empty request body (a plain GET) still gets its own labelled, empty section
+            renderPacketWithBodies(page, "get", "", "{\"resp\":2}");
+            assertThat(bodyBlockCount(page)).isEqualTo(2);
+            assertThat(page.innerText("#detail-bodies"))
+                    .containsIgnoringCase("Request body").containsIgnoringCase("Response body");
+            assertThat(page.querySelector("#detail-bodies .body-empty")).isNotNull();
+
+            // empty response body is shown the same way
+            renderPacketWithBodies(page, "empty-resp", "{\"req\":1}", "");
+            assertThat(bodyBlockCount(page)).isEqualTo(2);
+            assertThat(page.innerText("#detail-bodies"))
+                    .containsIgnoringCase("Request body").containsIgnoringCase("Response body");
+
+            // both empty -> still two sections, both marked empty
+            renderPacketWithBodies(page, "neither", "", "");
+            assertThat(bodyBlockCount(page)).isEqualTo(2);
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#detail-bodies .body-empty').length")).isEqualTo(2);
+        }
+    }
+
+    private void renderPacketWithBodies(Page page, String id, String requestBody, String responseBody) {
+        page.evaluate("""
+                ([id, req, resp]) => renderDetail({
+                  id: id, url: '/', label: 't', method: 'POST',
+                  status: '200', success: true, type: 'HTTP', threadName: 'th',
+                  elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                  requestHeaders: {}, responseHeaders: {},
+                  requestBody: req, responseBody: resp
+                })
+                """, java.util.List.of(id, requestBody, responseBody));
+    }
+
+    private int bodyBlockCount(Page page) {
+        return (Integer) page.evaluate(
+                "() => document.querySelectorAll('#detail-bodies .body-block').length");
+    }
+
     @Test
     void invalidResponseBodyIsTinted() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {

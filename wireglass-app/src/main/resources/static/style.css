@@ -1181,6 +1181,17 @@ td.c-latency { font-variant-numeric: tabular-nums; }
 .detail .cm-host .CodeMirror { height: auto; }  /* large bodies get a fixed scroll height via JS */
 .detail h3 .body-size { color: var(--muted); font-family: var(--font-mono); font-weight: 400; text-transform: none; margin-left: 8px; }
 
+/* placeholder that stands in for a viewer when the body is empty */
+.body-empty {
+    padding: 10px 12px;
+    border: 1px dashed var(--border-soft);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-style: italic;
+}
+
 /* per-body "expand" button + full-screen body viewer modal */
 .body-expand {
     margin-left: 8px;
