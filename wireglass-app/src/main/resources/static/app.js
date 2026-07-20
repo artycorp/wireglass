@@ -231,12 +231,20 @@ function computeEffectiveDashboardLinks() {
         .concat(state.localDashboardLinks);
 }
 
-function rebuildEffectiveRules() {
+// Every view that shows validation state, after the effective rule set changed. The packet
+// table draws a ✓/✗ shield per row (see appendRow), so it must repaint here too — leaving it
+// out is what made a disabled rule keep its shield until some unrelated filter change.
+function refreshSchemaViews() {
     computeEffectiveSchemaRules();
-    computeEffectiveDashboardLinks();
     renderSchemaRules();
-    refreshDashboardViews();
+    rebuildList();
     rerenderSelectedDetail();
+}
+
+function rebuildEffectiveRules() {
+    computeEffectiveDashboardLinks();
+    refreshDashboardViews();
+    refreshSchemaViews();
 }
 
 // Loads the app-configured (single, backend-side) server config. Independent of the ad hoc
@@ -299,9 +307,7 @@ function loadUrlSchemaSources(render = true) {
 
 function saveUrlSchemaSources() {
     localStorage.setItem(URL_SCHEMA_SOURCES_KEY, JSON.stringify(state.urlSchemaSources));
-    computeEffectiveSchemaRules();
-    renderSchemaRules();
-    rerenderSelectedDetail();
+    refreshSchemaViews();
 }
 
 // Fetched client-side (subject to the target's CORS policy) since this URL is picked by the
@@ -1471,9 +1477,7 @@ function loadSchemaRules(render = true) {
 
 function saveSchemaRules() {
     localStorage.setItem(SCHEMA_RULES_KEY, JSON.stringify(state.localSchemaRules));
-    computeEffectiveSchemaRules();
-    renderSchemaRules();
-    rerenderSelectedDetail();
+    refreshSchemaViews();
 }
 
 function schemaBadgeLabel(rule) {
@@ -1875,9 +1879,7 @@ el.schemaSave.addEventListener('click', () => {
             // cached remote copy, so refreshing/reloading that source can never silently drop it.
             state.schemaOverrides[editingId] = { name, pattern, target, schema };
             saveSchemaOverrides();
-            computeEffectiveSchemaRules();
-            renderSchemaRules();
-            rerenderSelectedDetail();
+            refreshSchemaViews();
         }
         state.editingSchemaRuleId = null;
         el.schemaSave.textContent = t('settings.save');
@@ -1906,9 +1908,7 @@ el.schemaList.addEventListener('click', (ev) => {
         delete state.schemaOverrides[resetBt.dataset.id];
         saveSchemaOverrides();
         if (state.editingSchemaRuleId === resetBt.dataset.id) cancelEditSchemaRule();
-        computeEffectiveSchemaRules();
-        renderSchemaRules();
-        rerenderSelectedDetail();
+        refreshSchemaViews();
         setSchemaMessage(t('msg.resetToServer'), true);
         return;
     }

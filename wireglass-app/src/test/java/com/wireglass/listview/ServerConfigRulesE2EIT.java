@@ -168,6 +168,24 @@ class ServerConfigRulesE2EIT {
     }
 
     @Test
+    void disablingASchemaClearsTheShieldOnPacketsAlreadyInTheList() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 1);
+            assertThat(page.querySelector("#packet-body tr.pkt .valid-shield")).isNotNull();
+
+            openSettingsTab(page, "schema");
+            waitForListContains(page, "#schema-list", "Server response requires id");
+            page.click("#schema-list .schema-toggle-server");
+            page.click("#settings-back");
+
+            assertThat(page.querySelector("#packet-body tr.pkt .valid-shield")).isNull();
+            assertThat(page.querySelector("#packet-body tr.pkt.pkt-valid")).isNull();
+        }
+    }
+
+    @Test
     void serverDashboardCanBeDisabledWithoutDeletingIt() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
