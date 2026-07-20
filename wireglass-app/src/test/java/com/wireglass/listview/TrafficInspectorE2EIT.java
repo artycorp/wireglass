@@ -370,17 +370,12 @@ class TrafficInspectorE2EIT {
             assertThat(page.isVisible("#settings-panel")).isTrue();
             assertThat(page.isVisible("#schema-panel")).isTrue();
             assertThat(page.isVisible("#dashboard-panel")).isFalse();
-            assertThat(page.isVisible("#language-panel")).isFalse();
 
             page.click(".settings-tab[data-settings-tab='dashboards']");
             assertThat(page.isVisible("#dashboard-panel")).isTrue();
             assertThat(page.isVisible("#schema-panel")).isFalse();
             assertThat(page.getAttribute(".settings-tab[data-settings-tab='dashboards']", "aria-selected"))
                     .isEqualTo("true");
-
-            page.click(".settings-tab[data-settings-tab='language']");
-            assertThat(page.isVisible("#language-panel")).isTrue();
-            assertThat(page.innerText("#language-panel")).contains("English").contains("Русский");
 
             page.click("#settings-back");
             page.waitForFunction("() => document.querySelector('#settings-view').hidden",
@@ -391,7 +386,34 @@ class TrafficInspectorE2EIT {
             page.click("#settings-toggle");
             page.waitForSelector("#settings-view:not([hidden])",
                     new Page.WaitForSelectorOptions().setTimeout(TEST_TIMEOUT.toMillis()));
-            assertThat(page.isVisible("#language-panel")).isTrue();
+            assertThat(page.isVisible("#dashboard-panel")).isTrue();
+        }
+    }
+
+    @Test
+    void topbarControlsShareOneHeightAndCarryTheLanguageSwitch() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('.language-options').parentElement.classList.contains('topbar')"))
+                    .isTrue();
+            assertThat(page.querySelector("#language-panel")).isNull();
+            assertThat(page.querySelector("#settings-tab-language")).isNull();
+            assertThat(page.innerText(".topbar .language-options")).contains("English").contains("Русский");
+
+            assertThat((Boolean) page.evaluate("""
+                    () => {
+                      const ids = ['#run-toggle', '#settings-toggle', '#clear-btn',
+                                   ".language-option[data-language='en']",
+                                   ".language-option[data-language='ru']"];
+                      const heights = ids.map(s => document.querySelector(s).getBoundingClientRect().height);
+                      return Math.max(...heights) - Math.min(...heights) <= 1;
+                    }
+                    """)).isTrue();
+
+            page.click(".language-option[data-language='ru']");
+            assertThat(page.innerText("#clear-btn")).isEqualTo("Очистить");
         }
     }
 

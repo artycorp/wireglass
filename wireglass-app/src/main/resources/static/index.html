@@ -18,6 +18,11 @@
     <button type="button" id="settings-toggle" class="run-toggle settings-toggle" aria-expanded="false" aria-controls="settings-panel" data-i18n="topbar.settings">
         Settings <span class="caret">▾</span>
     </button>
+    <div class="language-options" role="group" aria-label="Interface language"
+         data-i18n-aria-label="settings.language.label">
+        <button type="button" class="seg language-option active" data-language="en" aria-pressed="true">English</button>
+        <button type="button" class="seg language-option" data-language="ru" aria-pressed="false">Русский</button>
+    </div>
     <div id="run-status" class="run-status" data-i18n="topbar.idle">idle</div>
     <div id="global-links" class="global-links"></div>
     <button type="button" id="clear-btn" class="toolbar-clear danger" data-i18n="topbar.clear" data-i18n-title="topbar.clearTitle" title="Clear captured packets">Clear</button>
@@ -187,9 +192,6 @@
                 <button type="button" class="settings-tab" id="settings-tab-trace"
                         role="tab" aria-selected="false" aria-controls="trace-panel"
                         data-settings-tab="trace" data-i18n="settings.tab.trace">Trace links <span id="trace-count">0</span></button>
-                <button type="button" class="settings-tab" id="settings-tab-language"
-                        role="tab" aria-selected="false" aria-controls="language-panel"
-                        data-settings-tab="language" data-i18n="settings.tab.language">Language</button>
             </div>
             <div class="schema-panel settings-pane" id="schema-panel" role="tabpanel" aria-labelledby="settings-tab-schema">
                 <div class="settings-form">
@@ -290,16 +292,6 @@
                     </div>
                 </div>
                 <div id="trace-list" class="schema-list"></div>
-            </div>
-            <div class="schema-panel settings-pane" id="language-panel" role="tabpanel" aria-labelledby="settings-tab-language" hidden>
-                <div class="settings-form">
-                    <div class="schema-field col-4" data-i18n="settings.language.label">Interface language
-                        <div class="language-options" role="group" aria-label="Interface language">
-                            <button type="button" class="seg language-option active" data-language="en" aria-pressed="true">English</button>
-                            <button type="button" class="seg language-option" data-language="ru" aria-pressed="false">Русский</button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

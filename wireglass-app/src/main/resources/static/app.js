@@ -1365,13 +1365,13 @@ function buildTraceUrl(template, value) {
 
 function loadSettingsTab() {
     const stored = localStorage.getItem(SETTINGS_TAB_KEY);
-    setSettingsTab(['dashboards', 'language', 'trace'].includes(stored) ? stored : 'schema', false);
+    setSettingsTab(['dashboards', 'trace'].includes(stored) ? stored : 'schema', false);
 }
 
 function setSettingsTab(tab, persist = true) {
-    state.settingsTab = ['dashboards', 'language', 'trace'].includes(tab) ? tab : 'schema';
+    state.settingsTab = ['dashboards', 'trace'].includes(tab) ? tab : 'schema';
     if (persist) localStorage.setItem(SETTINGS_TAB_KEY, state.settingsTab);
-    [el.schemaPanel, el.dashboardPanel, document.getElementById('trace-panel'), document.getElementById('language-panel')].forEach(panel => {
+    [el.schemaPanel, el.dashboardPanel, document.getElementById('trace-panel')].forEach(panel => {
         if (panel) panel.hidden = panel.id !== state.settingsTabPanelId;
     });
     el.settingsTabs.forEach(tabEl => {
@@ -1384,7 +1384,6 @@ function setSettingsTab(tab, persist = true) {
 Object.defineProperty(state, 'settingsTabPanelId', {
     get() {
         if (state.settingsTab === 'dashboards') return 'dashboard-panel';
-        if (state.settingsTab === 'language') return 'language-panel';
         if (state.settingsTab === 'trace') return 'trace-panel';
         return 'schema-panel';
     }
@@ -1393,9 +1392,6 @@ Object.defineProperty(state, 'settingsTabPanelId', {
 function focusActiveSettingsField() {
     if (state.settingsTab === 'dashboards') {
         el.dashName.focus();
-    } else if (state.settingsTab === 'language') {
-        const active = document.querySelector('.language-option.active');
-        if (active) active.focus();
     } else if (state.settingsTab === 'trace') {
         el.traceHeader.focus();
     } else {

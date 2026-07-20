@@ -92,8 +92,6 @@ class I18nE2EIT {
 
             assertThat(page.innerText("#settings-toggle")).contains("Settings");
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
 
             assertThat(page.innerText("#settings-toggle")).contains("Настройки");
@@ -112,10 +110,7 @@ class I18nE2EIT {
             Page page = browser.newPage();
             page.navigate(baseUrl());
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
-            page.click("#settings-back");
             page.click("#run-toggle");
 
             assertThat(page.innerText("#run-toggle")).contains("Новый прогон");
@@ -138,10 +133,7 @@ class I18nE2EIT {
             Page page = browser.newPage();
             page.navigate(baseUrl());
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
-            page.click("#settings-back");
 
             assertThat(page.innerText("#run-all")).isEqualTo("Все прогоны");
             String headers = page.innerText("#packet-table thead");
@@ -166,13 +158,11 @@ class I18nE2EIT {
             Page page = browser.newPage();
             page.navigate(baseUrl());
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
+            page.click("#settings-toggle");
 
             assertThat(page.innerText(".settings-head")).contains("Настройки");
             assertThat(page.innerText("#settings-tab-dashboards")).contains("Дашборды");
-            assertThat(page.innerText("#settings-tab-language")).contains("Язык");
             assertThat(page.innerText("#settings-back")).contains("Назад к трафику");
 
             page.click("#settings-tab-schema");
@@ -193,10 +183,7 @@ class I18nE2EIT {
             Page page = browser.newPage();
             page.navigate(baseUrl());
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
-            page.click("#settings-back");
 
             assertThat(page.innerText("#detail-content")).containsIgnoringCase("Выберите пакет");
 
@@ -212,10 +199,7 @@ class I18nE2EIT {
             Page page = browser.newPage();
             page.navigate(baseUrl());
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
-            page.click("#settings-back");
 
             assertThat(page.innerText("#packet-count")).isEqualTo("0 пакетов");
             assertThat(page.innerText("#run-status")).isEqualTo("ожидание");
@@ -289,10 +273,7 @@ class I18nE2EIT {
             page.click("#packet-body tr.pkt");
             assertThat(page.innerText("#detail-content")).containsIgnoringCase("Overview");
 
-            page.click("#settings-toggle");
-            page.click("#settings-tab-language");
             page.click(".language-option[data-language='ru']");
-            page.click("#settings-back");
 
             assertThat(page.querySelectorAll("#packet-body tr.pkt")).hasSize(before);
             assertThat(page.querySelector("#packet-body tr.pkt.selected")).isNotNull();

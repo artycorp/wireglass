@@ -63,6 +63,16 @@ html, body {
 .brand { font-family: var(--font-mono); font-weight: 600; font-size: 15px; letter-spacing: -.01em; color: var(--accent); }
 .brand span { color: var(--muted); font-weight: 400; }
 
+/* Every control in the top bar is one height, whatever padding its role
+   carries elsewhere: New run, Settings, the language pair and Clear must
+   share a baseline or the row reads as ragged. */
+.topbar button {
+    min-height: 34px;
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1;
+}
+
 /* compact top bar: the load form lives in a collapsible panel below */
 .run-toggle {
     display: inline-flex;
@@ -302,6 +312,9 @@ button.field-action:hover:not(:disabled) {
 }
 .topbar .toolbar-clear {
     margin-left: auto;
+    min-width: 105px;
+    padding-left: 13px;
+    padding-right: 13px;
 }
 /* active-filters summary row */
 .active-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
@@ -620,6 +633,26 @@ button.field-action:hover:not(:disabled) {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+.topbar .language-options {
+    flex-wrap: nowrap;
+    gap: 0;
+}
+/* the pair reads as one control: shared edge, rounded only on the outside */
+.topbar .language-option {
+    border-radius: 0;
+    margin-left: -1px;
+}
+.topbar .language-option:first-child {
+    border-radius: 5px 0 0 5px;
+    margin-left: 0;
+}
+.topbar .language-option:last-child {
+    border-radius: 0 5px 5px 0;
+}
+.topbar .language-option.active {
+    position: relative;
+    z-index: 1;
 }
 
 /* empty-state row when filters hide everything */
