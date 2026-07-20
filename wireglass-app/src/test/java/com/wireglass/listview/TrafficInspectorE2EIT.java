@@ -1145,6 +1145,31 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void headerNamesAreVisibleNextToTheirValues() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            page.evaluate("""
+                    () => renderDetail({
+                      id: 'hdr-test', url: 'https://x.test/', label: 'h', method: 'GET',
+                      status: '200', success: true, type: 'HTTP', threadName: 'th',
+                      elapsedMs: 1, connectMs: 0, latencyMs: 1,
+                      requestHeaders: { 'Content-Type': 'application/json' },
+                      responseHeaders: { 'Access-Control-Allow-Credentials': 'true' },
+                      requestBody: '', responseBody: '{}'
+                    })
+                    """);
+            String headers = page.innerText("#detail-headers");
+            assertThat(headers).contains("Content-Type").contains("Access-Control-Allow-Credentials");
+
+            // innerText reports clipped text too, so assert the name column is actually laid out.
+            var clipped = (Boolean) page.evaluate(
+                    "() => [...document.querySelectorAll('#detail-headers td.k')]"
+                            + ".some(td => td.scrollWidth > td.clientWidth + 1 || td.clientWidth < 60)");
+            assertThat(clipped).isFalse();
+        }
+    }
+
+    @Test
     void listRowShowsSchemaValidationIndicator() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
