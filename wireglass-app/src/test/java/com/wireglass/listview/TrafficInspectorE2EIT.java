@@ -167,6 +167,22 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void timestampCellShowsTheWholeTimeWithoutEllipsis() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            startRun(page, "GET", "", null);
+            waitForRowCount(page, 2);
+
+            assertThat(page.innerText("#packet-body tr.pkt .c-time"))
+                    .matches("\\d{2}:\\d{2}:\\d{2}\\.\\d{3}");
+            assertThat((Boolean) page.evaluate(
+                    "() => { const c = document.querySelector('#packet-body tr.pkt .c-time');"
+                            + " return c.scrollWidth <= c.clientWidth; }"))
+                    .isTrue();
+        }
+    }
+
+    @Test
     void packetsExposeRunIdInHistoryAndLiveStream() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

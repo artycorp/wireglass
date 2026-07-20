@@ -677,7 +677,8 @@ tr.empty-row a { color: var(--accent); cursor: pointer; }
 table { border-collapse: collapse; width: 100%; table-layout: fixed; }
 colgroup col.c-idx { width: 3rem; }
 colgroup col.c-valid { width: 2.2rem; }
-colgroup col.c-time { width: 7rem; }
+/* fits hh:mm:ss.mmm in Plex Mono 13px (12 chars ~94px) plus the 20px cell padding */
+colgroup col.c-time { width: 8.25rem; }
 colgroup col.c-type { width: 4.5rem; }
 colgroup col.c-method { width: 5rem; }
 colgroup col.c-url { width: auto; }
