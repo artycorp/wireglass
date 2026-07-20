@@ -1121,6 +1121,59 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void tracePanelEditsAnExistingLinkInPlace() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "trace");
+
+            // the panel is seeded with one default link (x-b3-traceid); this adds a second
+            page.fill("#trace-header", "x-request-id");
+            page.fill("#trace-url", "https://sfx.test/trace/{value}");
+            page.click("#trace-save");
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#trace-list .schema-rule').length")).isEqualTo(2);
+
+            // editing pre-fills the form and switches Save -> Update
+            page.click("#trace-list .schema-rule:nth-child(2) .trace-edit");
+            assertThat(page.inputValue("#trace-header")).isEqualTo("x-request-id");
+            assertThat(page.inputValue("#trace-url")).isEqualTo("https://sfx.test/trace/{value}");
+            assertThat(page.innerText("#trace-save")).isEqualTo("Update");
+            assertThat(page.isVisible("#trace-cancel-edit")).isTrue();
+            assertThat((Boolean) page.evaluate(
+                    "() => document.querySelector('#trace-list .schema-rule:nth-child(2)')"
+                            + ".classList.contains('editing')")).isTrue();
+
+            page.fill("#trace-header", "x-correlation-id");
+            page.fill("#trace-url", "https://sfx.test/v2/{value}");
+            page.click("#trace-save");
+
+            // updated in place: still two rows, edit mode closed
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#trace-list .schema-rule').length")).isEqualTo(2);
+            // header cells are uppercased by CSS, so compare case-insensitively
+            assertThat(page.innerText("#trace-list"))
+                    .containsIgnoringCase("x-correlation-id").doesNotContainIgnoringCase("x-request-id");
+            assertThat(page.innerText("#trace-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#trace-cancel-edit")).isFalse();
+
+            // persists across reload
+            page.reload();
+            openSettingsTab(page, "trace");
+            assertThat(page.innerText("#trace-list")).containsIgnoringCase("x-correlation-id");
+
+            // cancel restores the idle Save state without touching the link
+            page.click("#trace-list .schema-rule:nth-child(2) .trace-edit");
+            page.fill("#trace-header", "should-not-be-saved");
+            page.click("#trace-cancel-edit");
+            assertThat(page.innerText("#trace-save")).isEqualTo("Save");
+            assertThat(page.isVisible("#trace-cancel-edit")).isFalse();
+            assertThat(page.inputValue("#trace-header")).isEqualTo("");
+            assertThat(page.innerText("#trace-list"))
+                    .containsIgnoringCase("x-correlation-id").doesNotContainIgnoringCase("should-not-be-saved");
+        }
+    }
+
+    @Test
     void setCookieHeaderIsSplitIntoNameValueTable() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

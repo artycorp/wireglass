@@ -33,6 +33,7 @@ const state = {
     disabledServerItems: new Set(),
     traceLinks: [],
     editingDashLinkId: null,
+    editingTraceIndex: null,
     editingSchemaRuleId: null,
     settingsTab: 'schema',
 };
@@ -110,6 +111,7 @@ const el = {
     traceHeader: document.getElementById('trace-header'),
     traceUrl: document.getElementById('trace-url'),
     traceSave: document.getElementById('trace-save'),
+    traceCancelEdit: document.getElementById('trace-cancel-edit'),
     traceMessage: document.getElementById('trace-message'),
     traceList: document.getElementById('trace-list'),
     traceCount: document.getElementById('trace-count'),
@@ -1351,11 +1353,40 @@ function renderTraceLinks() {
         return;
     }
     el.traceList.innerHTML = state.traceLinks.map((tl, i) =>
-        '<div class="schema-rule" data-trace="' + i + '">'
+        '<div class="schema-rule' + (i === state.editingTraceIndex ? ' editing' : '') + '" data-trace="' + i + '">'
         + '<span class="validation-target">' + esc(tl.header) + '</span>'
         + '<code>' + esc(tl.urlTemplate) + '</code>'
+        + '<button type="button" class="mini trace-edit" data-trace="' + i + '">' + esc(t('list.edit')) + '</button>'
         + '<button type="button" class="mini trace-delete" data-trace="' + i + '">' + esc(t('list.delete')) + '</button>'
         + '</div>').join('');
+}
+
+function setTraceMessage(text, ok) {
+    el.traceMessage.textContent = text;
+    el.traceMessage.className = 'schema-message' + (ok ? ' ok' : '');
+}
+
+function startEditTraceLink(index) {
+    const link = state.traceLinks[index];
+    if (!link) return;
+    state.editingTraceIndex = index;
+    el.traceHeader.value = link.header;
+    el.traceUrl.value = link.urlTemplate;
+    el.traceSave.textContent = t('list.update');
+    el.traceCancelEdit.hidden = false;
+    setTraceMessage(t('msg.editing', { name: link.header }), true);
+    renderTraceLinks();
+    el.traceHeader.focus();
+}
+
+function cancelEditTraceLink() {
+    state.editingTraceIndex = null;
+    el.traceHeader.value = '';
+    el.traceUrl.value = '';
+    el.traceSave.textContent = t('settings.save');
+    el.traceCancelEdit.hidden = true;
+    setTraceMessage('', true);
+    renderTraceLinks();
 }
 
 function traceLinkFor(headerName) {
@@ -2026,18 +2057,33 @@ if (el.traceSave) {
     el.traceSave.addEventListener('click', () => {
         const header = el.traceHeader.value.trim();
         const urlTemplate = el.traceUrl.value.trim();
-        if (!header || !urlTemplate) { el.traceMessage.textContent = t('msg.traceRequired'); el.traceMessage.className = 'schema-message'; return; }
-        if (!buildTraceUrl(urlTemplate, 'x')) { el.traceMessage.textContent = t('msg.traceInvalid'); el.traceMessage.className = 'schema-message'; return; }
-        state.traceLinks.push({ header, urlTemplate });
-        saveTraceLinks();
+        if (!header || !urlTemplate) { setTraceMessage(t('msg.traceRequired'), false); return; }
+        if (!buildTraceUrl(urlTemplate, 'x')) { setTraceMessage(t('msg.traceInvalid'), false); return; }
+        if (state.editingTraceIndex !== null) {
+            state.traceLinks[state.editingTraceIndex] = { header, urlTemplate };
+            state.editingTraceIndex = null;
+            el.traceSave.textContent = t('settings.save');
+            el.traceCancelEdit.hidden = true;
+            setTraceMessage(t('msg.updated'), true);
+        } else {
+            state.traceLinks.push({ header, urlTemplate });
+            setTraceMessage(t('msg.saved'), true);
+        }
         el.traceHeader.value = ''; el.traceUrl.value = '';
-        el.traceMessage.textContent = t('msg.saved'); el.traceMessage.className = 'schema-message ok';
+        saveTraceLinks();
     });
+}
+if (el.traceCancelEdit) {
+    el.traceCancelEdit.addEventListener('click', cancelEditTraceLink);
 }
 if (el.traceList) {
     el.traceList.addEventListener('click', (ev) => {
+        const editBt = ev.target.closest('.trace-edit');
+        if (editBt) { startEditTraceLink(Number(editBt.dataset.trace)); return; }
         const btn = ev.target.closest('.trace-delete');
         if (!btn) return;
+        // indices shift on removal, so any delete invalidates an in-progress edit
+        if (state.editingTraceIndex !== null) cancelEditTraceLink();
         state.traceLinks.splice(Number(btn.dataset.trace), 1);
         saveTraceLinks();
     });
