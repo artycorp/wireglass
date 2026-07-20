@@ -9,12 +9,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The project targets Java 17 (the DSL is built against JMeter 5.6.x).
       # cache: maven persists ~/.m2 between runs.
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -24,7 +24,7 @@ jobs:
       # the first run (or a version bump) pays the download. Key is pinned to the
       # playwright.version in wireglass-app/pom.xml.
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-chromium-1.48.0
