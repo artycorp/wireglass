@@ -1031,6 +1031,35 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void dashboardTemplatePreviewMarksHeaderVariablesAsKnown() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            // header placeholder renders as a KNOWN template-var (no 'custom' class)
+            Boolean known = (Boolean) page.evaluate(
+                "() => { const d = document.createElement('div');"
+                + " d.innerHTML = renderTemplatePreview('x={reqHeader:x-request-id}');"
+                + " const span = d.querySelector('.template-var');"
+                + " return !!span && !span.classList.contains('custom'); }");
+            assertThat(known).isTrue();
+
+            // the hint title carries the header name
+            String title = (String) page.evaluate(
+                "() => { const d = document.createElement('div');"
+                + " d.innerHTML = renderTemplatePreview('{respHeader:x-trace-id}');"
+                + " return d.querySelector('.template-var').getAttribute('title'); }");
+            assertThat(title).contains("response header").contains("x-trace-id");
+
+            // an unknown bare placeholder is still 'custom'
+            Boolean custom = (Boolean) page.evaluate(
+                "() => { const d = document.createElement('div');"
+                + " d.innerHTML = renderTemplatePreview('{whatever}');"
+                + " return d.querySelector('.template-var').classList.contains('custom'); }");
+            assertThat(custom).isTrue();
+        }
+    }
+
+    @Test
     void detailPaneShowsMatchingDashboardLinksWithSafeHref() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

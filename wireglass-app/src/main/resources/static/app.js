@@ -1161,16 +1161,20 @@ const DASHBOARD_VAR_HINTS = {
 
 function renderTemplatePreview(template) {
     const text = String(template || '').trim();
-    if (!text) return '<span class="template-empty">Variables like {host}, {fromMs}, and {toMs} will be highlighted here.</span>';
+    if (!text) return '<span class="template-empty">Variables like {host}, {fromMs}, and {reqHeader:x-request-id} will be highlighted here.</span>';
     const parts = [];
-    const placeholderPattern = /\{(\w+)}/g;
+    const placeholderPattern = /\{(\w+)(?::([^}]*))?\}/g;
     let lastIndex = 0;
     let match;
     while ((match = placeholderPattern.exec(text)) !== null) {
         if (match.index > lastIndex) parts.push(esc(text.slice(lastIndex, match.index)));
         const name = match[1];
-        const known = Object.prototype.hasOwnProperty.call(DASHBOARD_VAR_HINTS, name);
-        const title = known ? DASHBOARD_VAR_HINTS[name] : 'custom placeholder';
+        const arg = match[2];
+        const isHeader = (name === 'reqHeader' || name === 'respHeader') && arg !== undefined;
+        const known = isHeader || Object.prototype.hasOwnProperty.call(DASHBOARD_VAR_HINTS, name);
+        const title = isHeader
+            ? (name === 'reqHeader' ? 'request header "' : 'response header "') + arg + '"'
+            : (known ? DASHBOARD_VAR_HINTS[name] : 'custom placeholder');
         parts.push('<span class="template-var' + (known ? '' : ' custom') + '" data-var="' + esc(name)
             + '" title="' + esc(title) + '">' + esc(match[0]) + '</span>');
         lastIndex = placeholderPattern.lastIndex;
