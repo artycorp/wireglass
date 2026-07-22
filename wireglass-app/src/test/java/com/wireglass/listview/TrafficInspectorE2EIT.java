@@ -996,6 +996,41 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void dashboardTemplateResolvesPacketHeaderVariables() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            // request header, case-insensitive (template X-Request-Id vs packet x-request-id),
+            // value URL-encoded, mixed with existing {host}/{fromMs} placeholders
+            String href = (String) page.evaluate(
+                "() => buildDashboardUrl("
+                + "'https://g/d/UID?rid={reqHeader:X-Request-Id}&h={host}&from={fromMs}', "
+                + "{ url:'https://api.example.com/orders', "
+                + "requestHeaders:{'x-request-id':'abc 123'}, responseHeaders:{}, "
+                + "timestamp:'2026-06-30T10:00:00.000Z' })");
+            assertThat(href).contains("rid=abc%20123").contains("h=api.example.com");
+            assertThat(href).matches(".*from=\\d+.*");
+
+            // response header resolves from responseHeaders
+            String respHref = (String) page.evaluate(
+                "() => buildDashboardUrl('https://g?t={respHeader:x-trace-id}', "
+                + "{ url:'https://h/x', requestHeaders:{}, responseHeaders:{'x-trace-id':'t-9'} })");
+            assertThat(respHref).isEqualTo("https://g?t=t-9");
+
+            // missing header -> empty, no leftover literal
+            String missing = (String) page.evaluate(
+                "() => buildDashboardUrl('https://g?t={reqHeader:x-absent}', "
+                + "{ url:'https://h/x', requestHeaders:{}, responseHeaders:{} })");
+            assertThat(missing).isEqualTo("https://g?t=").doesNotContain("%7B");
+
+            // global link (no packet) -> header resolves empty, not literal
+            String global = (String) page.evaluate(
+                "() => buildDashboardUrl('https://g?t={reqHeader:x-request-id}', null)");
+            assertThat(global).isEqualTo("https://g?t=").doesNotContain("%7B");
+        }
+    }
+
+    @Test
     void detailPaneShowsMatchingDashboardLinksWithSafeHref() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

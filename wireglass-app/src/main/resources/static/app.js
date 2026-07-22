@@ -1100,6 +1100,7 @@ function dashboardVars(packet) {
         url: '', host: '', port: '', scheme: '', path: '', query: '',
         method: '', status: '', label: '', type: '', thread: '',
         timestamp: '', epochMs: '', epochSec: '',
+        __reqHeaders: {}, __respHeaders: {},
     };
     if (packet) {
         const u = dashboardUrlParts(packet.url || '');
@@ -1109,14 +1110,31 @@ function dashboardVars(packet) {
             method: packet.method || '', status: packet.status || '',
             label: packet.label || '', type: packet.type || '', thread: packet.threadName || '',
             timestamp: packet.timestamp || '', epochMs: center, epochSec: Math.floor(center / 1000),
+            __reqHeaders: packet.requestHeaders || {}, __respHeaders: packet.responseHeaders || {},
         });
     }
     return vars;
 }
 
+function lookupHeader(map, name) {
+    if (!map || typeof map !== 'object') return '';
+    const want = String(name).toLowerCase();
+    for (const key of Object.keys(map)) {
+        if (key.toLowerCase() === want) return map[key] == null ? '' : String(map[key]);
+    }
+    return '';
+}
+
 function applyTemplate(template, vars) {
-    return String(template || '').replace(/\{(\w+)}/g, (m, name) =>
-        Object.prototype.hasOwnProperty.call(vars, name) ? encodeURIComponent(vars[name]) : m);
+    return String(template || '').replace(/\{(\w+)(?::([^}]*))?\}/g, (m, name, arg) => {
+        if (arg !== undefined && (name === 'reqHeader' || name === 'respHeader')) {
+            const map = name === 'reqHeader' ? vars.__reqHeaders : vars.__respHeaders;
+            return encodeURIComponent(lookupHeader(map, arg));
+        }
+        if (name.startsWith('__')) return m;
+        return Object.prototype.hasOwnProperty.call(vars, name)
+            ? encodeURIComponent(vars[name]) : m;
+    });
 }
 
 const DASHBOARD_VAR_HINTS = {
