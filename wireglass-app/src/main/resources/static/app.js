@@ -680,8 +680,8 @@ function renderDetail(packet) {
         + '</div></section>'
         + validationSection(validation)
         + dashboardSectionPlaceholder()
-        + '<section class="detail-section" id="detail-headers">' + sectionHeaders(t('detail.requestHeaders'), packet.requestHeaders, 'outgoing')
-        + sectionHeaders(t('detail.responseHeaders'), packet.responseHeaders, 'incoming') + '</section>'
+        + '<section class="detail-section" id="detail-headers">' + sectionHeaders(t('detail.requestHeaders'), packet.requestHeaders, 'outgoing', packet)
+        + sectionHeaders(t('detail.responseHeaders'), packet.responseHeaders, 'incoming', packet) + '</section>'
         + '<section class="detail-section" id="detail-bodies">' + bodyBlock(packet.id, reqTitle(packet), packet.requestBody, false, false, 'request', validation.paths.request, null)
         + bodyBlock(packet.id, respTitle(packet), packet.responseBody, packet.bodyBinary, packet.bodyTruncated, 'response', validation.paths.response, bodyValidationState(validation, 'response')) + '</section>'
         + (packet.failureMessage
@@ -757,7 +757,7 @@ function cookieTableHtml(headerName, value) {
     return '<table class="cookie-table">' + pairs + attrs + '</table>';
 }
 
-function sectionHeaders(title, headers, direction) {
+function sectionHeaders(title, headers, direction, packet) {
     if (!headers || Object.keys(headers).length === 0) return '';
     let rows = '';
     for (const [k, v] of Object.entries(headers)) {
@@ -766,7 +766,7 @@ function sectionHeaders(title, headers, direction) {
             rendered = cookieTableHtml(k, v);
         } else {
             const tpl = traceLinkFor(k);
-            const href = tpl ? buildTraceUrl(tpl, v) : null;
+            const href = tpl ? buildTraceUrl(tpl, v, packet) : null;
             rendered = href
                 ? '<a class="trace-link" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(v) + '</a>'
                 : esc(v);
@@ -1424,8 +1424,10 @@ function traceLinkFor(headerName) {
     return hit ? hit.urlTemplate : null;
 }
 
-function buildTraceUrl(template, value) {
-    const href = String(template).replace(/\{value\}/g, encodeURIComponent(value));
+function buildTraceUrl(template, value, packet) {
+    const vars = dashboardVars(packet);
+    vars.value = value == null ? '' : value;
+    const href = applyTemplate(template, vars);
     return /^https?:\/\//i.test(href) ? href : null;
 }
 

@@ -1185,6 +1185,24 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void traceTemplateResolvesSharedDashboardVariables() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+
+            // trace templates now go through the same engine as dashboards: {value} (the header's
+            // own value) plus packet variables {host} and {reqHeader:...} all resolve.
+            String href = (String) page.evaluate(
+                "() => buildTraceUrl('https://apm/t/{value}?host={host}&rid={reqHeader:x-request-id}', "
+                + "'v-9', { url:'https://api.example.com/o', "
+                + "requestHeaders:{'x-request-id':'abc'}, responseHeaders:{} })");
+            assertThat(href).isEqualTo("https://apm/t/v-9?host=api.example.com&rid=abc");
+
+            // the http(s) safety gate is preserved
+            assertThat(page.evaluate("() => buildTraceUrl('ftp://x/{value}', 'v')")).isNull();
+        }
+    }
+
+    @Test
     void tracePanelEditsAnExistingLinkInPlace() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));
