@@ -1203,6 +1203,22 @@ class TrafficInspectorE2EIT {
     }
 
     @Test
+    void traceEditorShowsSharedTemplatePreview() {
+        try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
+            page.navigate(appUrl("/"));
+            openSettingsTab(page, "trace");
+            page.fill("#trace-url", "https://apm/t/{value}?rid={reqHeader:x-request-id}");
+
+            // the trace editor shares the dashboard's live template preview
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#trace-url-preview .template-var').length")).isEqualTo(2);
+            // both {value} and the header placeholder resolve as known (no 'custom' class)
+            assertThat((Integer) page.evaluate(
+                    "() => document.querySelectorAll('#trace-url-preview .template-var.custom').length")).isEqualTo(0);
+        }
+    }
+
+    @Test
     void tracePanelEditsAnExistingLinkInPlace() {
         try (BrowserContext context = browser.newContext(); Page page = context.newPage()) {
             page.navigate(appUrl("/"));

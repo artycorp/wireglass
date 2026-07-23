@@ -110,6 +110,7 @@ const el = {
     dashList: document.getElementById('dash-list'),
     traceHeader: document.getElementById('trace-header'),
     traceUrl: document.getElementById('trace-url'),
+    traceUrlPreview: document.getElementById('trace-url-preview'),
     traceSave: document.getElementById('trace-save'),
     traceCancelEdit: document.getElementById('trace-cancel-edit'),
     traceMessage: document.getElementById('trace-message'),
@@ -1157,6 +1158,7 @@ const DASHBOARD_VAR_HINTS = {
     timestamp: 'packet timestamp',
     epochMs: 'packet timestamp ms',
     epochSec: 'packet timestamp seconds',
+    value: 'matched header value (trace links)',
 };
 
 function renderTemplatePreview(template) {
@@ -1183,9 +1185,17 @@ function renderTemplatePreview(template) {
     return parts.join('');
 }
 
+function renderTemplatePreviewInto(previewEl, inputEl) {
+    if (!previewEl || !inputEl) return;
+    previewEl.innerHTML = renderTemplatePreview(inputEl.value);
+}
+
 function updateDashboardTemplatePreview() {
-    if (!el.dashUrlPreview) return;
-    el.dashUrlPreview.innerHTML = renderTemplatePreview(el.dashUrl.value);
+    renderTemplatePreviewInto(el.dashUrlPreview, el.dashUrl);
+}
+
+function updateTraceTemplatePreview() {
+    renderTemplatePreviewInto(el.traceUrlPreview, el.traceUrl);
 }
 
 function buildDashboardUrl(template, packet) {
@@ -1401,6 +1411,7 @@ function startEditTraceLink(index) {
     state.editingTraceIndex = index;
     el.traceHeader.value = link.header;
     el.traceUrl.value = link.urlTemplate;
+    updateTraceTemplatePreview();
     el.traceSave.textContent = t('list.update');
     el.traceCancelEdit.hidden = false;
     setTraceMessage(t('msg.editing', { name: link.header }), true);
@@ -1412,6 +1423,7 @@ function cancelEditTraceLink() {
     state.editingTraceIndex = null;
     el.traceHeader.value = '';
     el.traceUrl.value = '';
+    updateTraceTemplatePreview();
     el.traceSave.textContent = t('settings.save');
     el.traceCancelEdit.hidden = true;
     setTraceMessage('', true);
@@ -2034,6 +2046,7 @@ el.dashPreset.addEventListener('change', () => {
 });
 el.dashSystem.addEventListener('change', updateDashboardSystemPreview);
 el.dashUrl.addEventListener('input', updateDashboardTemplatePreview);
+if (el.traceUrl) el.traceUrl.addEventListener('input', updateTraceTemplatePreview);
 el.dashWindow.addEventListener('change', () => {
     const min = Math.max(1, Number(el.dashWindow.value) || 5);
     localStorage.setItem(DASHBOARD_WINDOW_KEY, String(min * 60000));
@@ -2101,6 +2114,7 @@ if (el.traceSave) {
             setTraceMessage(t('msg.saved'), true);
         }
         el.traceHeader.value = ''; el.traceUrl.value = '';
+        updateTraceTemplatePreview();
         saveTraceLinks();
     });
 }
@@ -2590,6 +2604,7 @@ loadSettingsTab();
 loadLanguage();
 updateDashboardSystemPreview();
 updateDashboardTemplatePreview();
+updateTraceTemplatePreview();
 loadDisabledServerItems();
 loadSchemaOverrides();
 loadUrlSchemaSources(false);
